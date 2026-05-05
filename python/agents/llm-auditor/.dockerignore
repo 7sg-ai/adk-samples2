@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.adk/
+*.egg-info/
+eval/
+tests/
+deployment/images/
+*.png
+*.gif
+*.svg
+.env

@@ -1,0 +1,131 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: llm-auditor
+  description: >
+    Multi-agent LLM fact-checking service built with Google ADK. A sequential
+    pipeline of critic and reviser agents evaluates LLM-generated answers,
+    verifies factual accuracy using web search, and rewrites responses to
+    correct inaccuracies. Exposes an ADK web UI on port 8080.
+  tags:
+    env: dev
+
+security:
+  policies:
+    secretsInEnvAllowed: true
+
+secrets:
+  provider: external-secrets
+  secretRefs:
+    - name: google-cloud-project
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      externalRef:
+        provider: vault
+        key: secret/llm-auditor/gcp/project
+    - name: google-cloud-location
+      injectAs: env
+      envVar: GOOGLE_CLOUD_LOCATION
+      externalRef:
+        provider: vault
+        key: secret/llm-auditor/gcp/location
+    - name: google-api-key
+      injectAs: env
+      envVar: GOOGLE_API_KEY
+      externalRef:
+        provider: vault
+        key: secret/llm-auditor/gcp/api-key
+
+dataSources:
+  inputs:
+    - name: google-search
+      description: Built-in Google Search tool used by the critic agent for claim verification
+  outputs: []
+
+scenarios:
+  native:
+    description: >
+      GCP-native deployment: containerised ADK agent on Cloud Run with
+      Vertex AI Gemini as the backing LLM and built-in Google Search for
+      fact verification.
+    topology:
+      components:
+        - name: llm-auditor-service
+          role: api
+          runtime:
+            platform: serverless
+            regions:
+              - us-central1
+            image:
+              repository: llm-auditor
+              tag: latest
+            env:
+              - name: GOOGLE_GENAI_USE_VERTEXAI
+                value: "true"
+            envFromSecretRefs:
+              - google-cloud-project
+              - google-cloud-location
+            resources:
+              cpu: "1"
+              memory: 2Gi
+            autoscaling:
+              minReplicas: 1
+              maxReplicas: 5
+              policy:
+                metric: cpu
+                target: 70
+          endpoints:
+            - name: http
+              port: 8080
+              exposure: public
+              protocol: http
+              path: /
+    deployments:
+      - name: gcp-us-central
+        target:
+          provider: gcp
+          region: us-central1
+          tdfRef: gcp-us-central
+        components:
+          - llm-auditor-service
+
+  alternates:
+    - name: local-dev
+      description: >
+        Local development using Gemini API key (no Vertex AI). Runs via
+        uv/ADK CLI on the developer machine.
+      topology:
+        components:
+          - name: llm-auditor-service
+            role: api
+            runtime:
+              platform: custom
+              regions:
+                - local
+              image:
+                repository: llm-auditor
+                tag: dev
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "false"
+              envFromSecretRefs:
+                - google-api-key
+              resources:
+                cpu: "1"
+                memory: 1Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: local
+          target:
+            provider: onprem
+            region: local
+          components:
+            - llm-auditor-service

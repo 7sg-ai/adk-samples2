@@ -69,3 +69,7 @@ target:
     secretStores:
       - name: gcp-secret-manager
         service: secret-manager
+    deployCredentials:
+      provider: gcp
+      secretRef: deploy-service-account-key
+      serviceAccountEmail: sherpa-orchestrator@gen-lang-client-0373235205.iam.gserviceaccount.com

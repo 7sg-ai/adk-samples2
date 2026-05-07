@@ -48,6 +48,18 @@ secrets:
       externalRef:
         provider: vault
         key: secret/story-teller/gcp/api-key
+    - name: deploy-service-account-key
+      injectAs: file
+      filePath: /credentials/deploy-sa.json
+      externalRef:
+        provider: gcp-secret-manager
+        key: deploy-service-account-key
+    - name: deploy-service-account-key-json
+      injectAs: env
+      envVar: GCP_SA_KEY_JSON
+      externalRef:
+        provider: gcp-secret-manager
+        key: deploy-service-account-key
 
 dataSources:
   inputs: []

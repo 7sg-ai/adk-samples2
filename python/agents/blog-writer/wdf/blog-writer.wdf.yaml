@@ -1,0 +1,144 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: blog-writer
+  description: >
+    Multi-agent technical blog writing system built with Google ADK. An
+    interactive blogger agent coordinates sub-agents for planning, writing,
+    editing, and social media content generation. Uses Gemini 2.5 Pro for
+    critique/editing and Gemini 2.5 Flash for content generation. Includes
+    tools for codebase analysis and file export. Exposes an ADK web UI
+    on port 8080.
+  tags:
+    env: dev
+  labels:
+    app: blog-writer
+    framework: google-adk
+  annotations:
+    sherpa.7sg.ai/origin: adk-samples
+  version: "0.1.0"
+
+source:
+  repo: https://github.com/google/adk-samples
+  branch: main
+  path: python/agents/blog-writer
+
+security:
+  policies:
+    secretsInEnvAllowed: true
+
+secrets:
+  provider: external-secrets
+  secretRefs:
+    - name: google-cloud-project
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      externalRef:
+        provider: vault
+        key: secret/blog-writer/gcp/project
+    - name: google-cloud-location
+      injectAs: env
+      envVar: GOOGLE_CLOUD_LOCATION
+      externalRef:
+        provider: vault
+        key: secret/blog-writer/gcp/location
+    - name: google-api-key
+      injectAs: env
+      envVar: GOOGLE_API_KEY
+      externalRef:
+        provider: vault
+        key: secret/blog-writer/gcp/api-key
+
+dataSources:
+  inputs:
+    - name: google-search
+      description: Built-in Google Search used by sub-agents for research during blog planning and writing
+  outputs: []
+
+scenarios:
+  native:
+    description: >
+      GCP-native deployment: containerised ADK agent on Cloud Run with
+      Vertex AI Gemini 2.5 Pro (critic/editor) and Flash (worker) as the
+      backing LLMs. Google Search for research grounding.
+    topology:
+      components:
+        - name: blog-writer-service
+          role: api
+          runtime:
+            platform: serverless
+            regions:
+              - us-central1
+            image:
+              repository: blog-writer
+              tag: latest
+            env:
+              - name: GOOGLE_GENAI_USE_VERTEXAI
+                value: "true"
+            envFromSecretRefs:
+              - google-cloud-project
+              - google-cloud-location
+            resources:
+              cpu: "2"
+              memory: 2Gi
+            autoscaling:
+              minReplicas: 1
+              maxReplicas: 5
+              policy:
+                metric: cpu
+                target: 70
+          endpoints:
+            - name: http
+              port: 8080
+              exposure: public
+              protocol: http
+              path: /
+    deployments:
+      - name: gcp-us-central
+        target:
+          provider: gcp
+          region: us-central1
+          tdfRef: gcp-us-central
+        components:
+          - blog-writer-service
+
+  alternates:
+    - name: local-dev
+      description: >
+        Local development using Gemini API key (no Vertex AI). Runs via
+        uv/ADK CLI on the developer machine.
+      topology:
+        components:
+          - name: blog-writer-service
+            role: api
+            runtime:
+              platform: custom
+              regions:
+                - local
+              image:
+                repository: blog-writer
+                tag: dev
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "false"
+              envFromSecretRefs:
+                - google-api-key
+              resources:
+                cpu: "1"
+                memory: 1Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: local
+          target:
+            provider: onprem
+            region: local
+          components:
+            - blog-writer-service

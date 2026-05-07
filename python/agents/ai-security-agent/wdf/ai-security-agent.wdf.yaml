@@ -1,0 +1,142 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: ai-security-agent
+  description: >
+    Automated LLM red-teaming framework built with Google ADK. A single
+    orchestrator agent coordinates three tool-based sub-workflows:
+    generate adversarial attack prompts, simulate target model responses,
+    and evaluate whether the attack succeeded. Uses Gemini 2.5 Pro for
+    attack generation and evaluation, Gemini 2.5 Flash as the target model.
+    Exposes an ADK web UI on port 8080.
+  tags:
+    env: dev
+  labels:
+    app: ai-security-agent
+    framework: google-adk
+  annotations:
+    sherpa.7sg.ai/origin: adk-samples
+  version: "0.1.0"
+
+source:
+  repo: https://github.com/google/adk-samples
+  branch: main
+  path: python/agents/ai-security-agent
+
+security:
+  policies:
+    secretsInEnvAllowed: true
+
+secrets:
+  provider: external-secrets
+  secretRefs:
+    - name: google-cloud-project
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      externalRef:
+        provider: vault
+        key: secret/ai-security-agent/gcp/project
+    - name: google-cloud-location
+      injectAs: env
+      envVar: GOOGLE_CLOUD_LOCATION
+      externalRef:
+        provider: vault
+        key: secret/ai-security-agent/gcp/location
+    - name: google-api-key
+      injectAs: env
+      envVar: GOOGLE_API_KEY
+      externalRef:
+        provider: vault
+        key: secret/ai-security-agent/gcp/api-key
+
+dataSources:
+  inputs: []
+  outputs: []
+
+scenarios:
+  native:
+    description: >
+      GCP-native deployment: containerised ADK agent on Cloud Run with
+      Vertex AI Gemini 2.5 Pro for red-teaming and evaluation, and
+      Gemini 2.5 Flash as the attack target. No external data sources.
+    topology:
+      components:
+        - name: ai-security-agent-service
+          role: api
+          runtime:
+            platform: serverless
+            regions:
+              - us-central1
+            image:
+              repository: ai-security-agent
+              tag: latest
+            env:
+              - name: GOOGLE_GENAI_USE_VERTEXAI
+                value: "true"
+            envFromSecretRefs:
+              - google-cloud-project
+              - google-cloud-location
+            resources:
+              cpu: "2"
+              memory: 2Gi
+            autoscaling:
+              minReplicas: 1
+              maxReplicas: 5
+              policy:
+                metric: cpu
+                target: 70
+          endpoints:
+            - name: http
+              port: 8080
+              exposure: public
+              protocol: http
+              path: /
+    deployments:
+      - name: gcp-us-central
+        target:
+          provider: gcp
+          region: us-central1
+          tdfRef: gcp-us-central
+        components:
+          - ai-security-agent-service
+
+  alternates:
+    - name: local-dev
+      description: >
+        Local development using Gemini API key (no Vertex AI). Runs via
+        uv/ADK CLI on the developer machine.
+      topology:
+        components:
+          - name: ai-security-agent-service
+            role: api
+            runtime:
+              platform: custom
+              regions:
+                - local
+              image:
+                repository: ai-security-agent
+                tag: dev
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "false"
+              envFromSecretRefs:
+                - google-api-key
+              resources:
+                cpu: "1"
+                memory: 1Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: local
+          target:
+            provider: onprem
+            region: local
+          components:
+            - ai-security-agent-service

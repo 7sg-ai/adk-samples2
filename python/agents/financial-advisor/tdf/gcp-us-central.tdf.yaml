@@ -25,7 +25,7 @@ target:
       type: serverless
       providerService: Cloud Run
       defaults:
-        project: <gcp-project-id>
+        project: gen-lang-client-0373235205
         namespace: default
       capabilities:
         supportsOIDCWorkloadIdentity: true
@@ -55,7 +55,7 @@ target:
       type: custom
       providerService: Artifact Registry
       defaults:
-        project: <gcp-project-id>
+        project: gen-lang-client-0373235205
       endpoints:
         registry: us-central1-docker.pkg.dev
     - name: cloud-logging

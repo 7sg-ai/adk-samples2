@@ -10,29 +10,29 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 
 dependencies = [
-    "google-adk>=1.5.0",
+    "google-adk>=1.33.0",
     "google-cloud-logging>=3.12.0",
-    "google-cloud-aiplatform[adk,agent-engines]>=1.93.0",
+    "google-cloud-aiplatform[adk,agent-engines]>=1.153.1",
     "pandas>=2.1.1",
-    "pillow>=10.3.0",
+    "pillow>=12.2.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.4",
+    "pytest>=9.0.3",
     "pytest-asyncio>=0.23.8",
     "nest-asyncio>=1.6.0",
-    "agent-starter-pack>=0.14.1",
+    "agent-starter-pack>=0.41.3",
     "jupyter~=1.1.1",
 ]
 
 [project.optional-dependencies]
 lint = [
-    "ruff>=0.4.6",
-    "mypy~=1.20.0",
+    "ruff>=0.15.13",
+    "mypy~=2.1.0",
     "codespell~=2.4.1",
-    "types-pyyaml~=6.0.12.20240917",
-    "types-requests~=2.33.0.20260327",
+    "types-pyyaml~=6.0.12.20260510",
+    "types-requests~=2.33.0.20260513",
 ]
 
 [tool.ruff]
@@ -81,7 +81,7 @@ example_question = "Generate an image about a polar bear in the Sahara desert"
 agent_directory = "image_scoring"
 
 [build-system]
-requires = ["uv_build>=0.8.14,<0.9.0"]
+requires = ["uv_build>=0.11.14,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]

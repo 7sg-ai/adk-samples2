@@ -9,20 +9,20 @@ license = {text = "Apache License 2.0"}
 requires-python = ">=3.11"
 
 dependencies = [
-    "pydantic>=2.11.7",
+    "pydantic>=2.13.4",
     "python-dotenv>=1.1.1",
-    "uvicorn>=0.35.0",
-    "fastapi>=0.116.1",
+    "uvicorn>=0.47.0",
+    "fastapi>=0.136.1",
     "google-genai>=1.36.0",
-    "google-adk>=1.14.1",
+    "google-adk>=1.33.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
-    "ruff>=0.4.6",
-    "agent-starter-pack>=0.32.0",
+    "ruff>=0.15.13",
+    "agent-starter-pack>=0.41.3",
 ]
 
 [tool.ruff]

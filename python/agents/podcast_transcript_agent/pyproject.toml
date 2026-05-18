@@ -10,19 +10,19 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
-    "fastapi>=0.117.1",
-    "google-adk>=1.14.1",
+    "fastapi>=0.136.1",
+    "google-adk>=1.33.0",
     "google-generativeai>=0.8.5",
-    "pydantic>=2.11.9",
+    "pydantic>=2.13.4",
     "python-dotenv>=1.1.1",
-    "uvicorn>=0.36.0",
+    "uvicorn>=0.47.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.2",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.2.0",
-    "ruff>=0.4.6",
+    "ruff>=0.15.13",
 ]
 
 [tool.ruff]

@@ -1,0 +1,173 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: sail-researcher
+  description: >
+    Multi-agent sailing voyage planning service built with Google ADK for Go.
+    Three coordinated agents — Discovery ("The Commodore") for seasonal region
+    recommendations, Voyage ("The Guide") for regional routing and local advice
+    with Google Search, and Researcher ("The Harbourmaster") for stop-level
+    briefings using weather, tides, sunrise/sunset, and Google Maps Places tools.
+    Exposes the ADK REST API under /api/ on port 8081.
+  tags:
+    env: dev
+  labels:
+    app: sail-researcher
+    framework: google-adk
+    language: go
+  annotations:
+    sherpa.7sg.ai/origin: adk-samples2
+  version: "0.1.0"
+
+source:
+  repo: https://github.com/7sg-ai/adk-samples2
+  branch: main
+  path: go/agents/sail-researcher
+
+security:
+  policies:
+    secretsInEnvAllowed: true
+
+secrets:
+  provider: external-secrets
+  secretRefs:
+    - name: google-cloud-project
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      externalRef:
+        provider: vault
+        key: secret/sail-researcher/gcp/project
+    - name: gemini-api-key
+      injectAs: env
+      envVar: GEMINI_API_KEY
+      externalRef:
+        provider: vault
+        key: secret/sail-researcher/gcp/gemini-api-key
+    - name: google-maps-key
+      injectAs: env
+      envVar: GOOGLE_MAPS_KEY
+      externalRef:
+        provider: vault
+        key: secret/sail-researcher/gcp/google-maps-key
+
+dataSources:
+  inputs:
+    - name: gemini-api
+      description: >
+        Google Gemini generative API used by all ADK agents (discovery, voyage,
+        researcher, and search specialist). Default model from MODEL env
+        (e.g. gemini-2.0-flash-001).
+    - name: google-search
+      description: >
+        Google Search grounding via ADK geminitool.GoogleSearch on the voyage
+        and discovery agents.
+    - name: google-maps-places
+      description: >
+        Google Maps Places API for marinas, anchorages, and waterfront amenities
+        (places, sunrise tools).
+    - name: marine-weather
+      description: >
+        External weather and marine forecast APIs used by the weather tool.
+    - name: tide-data
+      description: >
+        Tide prediction API used by the tides tool for stop briefings.
+  outputs: []
+
+scenarios:
+  native:
+    description: >
+      GCP-native deployment on Cloud Run (us-central1). Containerised Go ADK
+      service with Gemini API access, Google Maps Places, structured JSON logging,
+      and Cloud Trace integration via GOOGLE_CLOUD_PROJECT.
+    topology:
+      components:
+        - name: sail-researcher-service
+          role: api
+          runtime:
+            platform: serverless
+            regions:
+              - us-central1
+            image:
+              repository: sail-researcher
+              tag: latest
+            env:
+              - name: ENV
+                value: production
+              - name: PORT
+                value: "8081"
+              - name: MODEL
+                value: gemini-2.0-flash-001
+            envFromSecretRefs:
+              - google-cloud-project
+              - gemini-api-key
+              - google-maps-key
+            resources:
+              cpu: "2"
+              memory: 2Gi
+            autoscaling:
+              minReplicas: 1
+              maxReplicas: 5
+              policy:
+                metric: cpu
+                target: 70
+          endpoints:
+            - name: adk-rest
+              port: 8081
+              exposure: public
+              protocol: http
+              path: /api/
+    deployments:
+      - name: gcp-us-central
+        target:
+          provider: gcp
+          region: us-central1
+          tdfRef: gcp-us-central
+        components:
+          - sail-researcher-service
+
+  alternates:
+    - name: local-dev
+      description: >
+        Local development with go run . and a .env file (GEMINI_API_KEY,
+        GOOGLE_MAPS_KEY, GOOGLE_CLOUD_PROJECT). ADK REST at http://localhost:8081/api/.
+      topology:
+        components:
+          - name: sail-researcher-service
+            role: api
+            runtime:
+              platform: custom
+              regions:
+                - local
+              image:
+                repository: sail-researcher
+                tag: dev
+              env:
+                - name: ENV
+                  value: development
+                - name: PORT
+                  value: "8081"
+                - name: MODEL
+                  value: gemini-2.0-flash-001
+              envFromSecretRefs:
+                - gemini-api-key
+                - google-maps-key
+                - google-cloud-project
+              resources:
+                cpu: "1"
+                memory: 1Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+            endpoints:
+              - name: adk-rest
+                port: 8081
+                exposure: public
+                protocol: http
+                path: /api/
+      deployments:
+        - name: local
+          target:
+            provider: onprem
+            region: local
+          components:
+            - sail-researcher-service

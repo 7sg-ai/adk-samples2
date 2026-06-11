@@ -1,0 +1,15 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+.env
+node_modules
+.pytest_cache
+eval/
+tests/
+profile_data/
+*.md
+LICENSE
+.vscode/
+.idea/

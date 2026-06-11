@@ -1,7 +1,7 @@
 apiVersion: wdf.7sg.ai/v2
 kind: WorkloadDefinition
 metadata:
-  name: ai-security-agent
+  name: ai-security-agent-v2
   description: >
     Automated LLM red-teaming framework built with Google ADK. A single
     orchestrator agent coordinates three tool-based sub-workflows:
@@ -29,6 +29,11 @@ security:
 
 secrets:
   provider: external-secrets
+  providers:
+    - name: gcp-main
+      provider: gcp-secret-manager
+      projectIdRef: gcp-secret-manager-project-id
+      brokerSecretRef: gcp-sa-key-json
   secretRefs:
     - name: google-cloud-project
       injectAs: env

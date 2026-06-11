@@ -9,7 +9,6 @@ node_modules
 eval/
 tests/
 profile_data/
-*.md
 LICENSE
 .vscode/
 .idea/

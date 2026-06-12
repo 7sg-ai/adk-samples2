@@ -28,4 +28,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080
 
 # Run adk web with OTEL auto-instrumentation for automatic trace capture
-CMD ["opentelemetry-instrument", "uv", "run", "adk", "web", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "adk", "web", "--host", "0.0.0.0", "--port", "8080"]

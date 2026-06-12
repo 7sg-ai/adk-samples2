@@ -10,4 +10,4 @@ COPY story_teller_agent/ ./story_teller_agent/
 ENV HOST=0.0.0.0
 ENV PORT=8080
 EXPOSE 8080
-CMD ["opentelemetry-instrument", "adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]
+CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]

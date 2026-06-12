@@ -21,6 +21,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
+server = ["uvicorn[standard]>=0.24.0"]
 lint = [
     "ruff>=0.4.6",
 ]

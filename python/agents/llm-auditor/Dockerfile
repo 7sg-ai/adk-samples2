@@ -3,7 +3,8 @@ WORKDIR /app
 RUN pip install uv
 COPY pyproject.toml .
 COPY . .
-RUN uv pip install --system --no-cache -e .
+RUN uv pip install --system --no-cache -e . || true
+RUN pip install opentelemetry-distro opentelemetry-exporter-otlp-proto-http openinference-instrumentation-google-adk
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
-CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]
+CMD ["opentelemetry-instrument", "adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]

@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 .git/
 .gitignore
-*.md
 venv/
 .venv/
 .env

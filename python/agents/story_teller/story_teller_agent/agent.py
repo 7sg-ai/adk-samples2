@@ -133,3 +133,20 @@ root_agent = SequentialAgent(
     sub_agents=[prompt_enhancer, story_loop, editor_agent],
     description="End-to-end story generation pipeline.",
 )
+
+# --- 3. FastAPI App for Cloud Run health probes ---
+from fastapi import FastAPI
+import uvicorn
+
+app = FastAPI()
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "healthy"}
+
+@app.get("/")
+async def root():
+    return {"message": "Story Teller Agent API. POST to /runs to start a session."}
+
+# Expose the root_agent for ADK web server
+app.state.root_agent = root_agent

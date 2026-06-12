@@ -8,4 +8,5 @@ RUN uv sync --frozen --no-install-project --no-dev || uv sync --no-install-proje
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080
-CMD ["adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]
+RUN pip install opentelemetry-distro opentelemetry-exporter-otlp-proto-http openinference-instrumentation-google-adk
+CMD ["opentelemetry-instrument", "adk", "web", "--host", "0.0.0.0", "--port", "8080", "/app"]

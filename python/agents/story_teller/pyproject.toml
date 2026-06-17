@@ -10,6 +10,8 @@ requires-python = ">=3.11"
 dependencies = [
     "google-adk>=1.0.0",
     "google-genai>=1.9.0",
+    "langfuse>=2.0.0,<3.0.0",
+    "openinference-instrumentation-google-adk",
 ]
 
 [dependency-groups]

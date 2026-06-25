@@ -1,0 +1,254 @@
+# Operating SLA — fomc-research (ADK sample agent)
+#
+# Sole normative reference for structure and metrics:
+#   Profilingconfluence.MD — "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
+# Section numbers below refer to that document only.
+#
+# Multi-agent workflow (6 agents) analyzing FOMC meetings.
+# Uses BigQuery for Fed Futures data, HTTP for Fed website.
+# Heavy complexity, pipeline-style with multiple model calls.
+#
+version: 1
+
+slos:
+  latency:
+    p50_ms: 45000       # heavy pipeline; BigQuery + HTTP + multi-agent
+    p95_ms: 120000
+    p99_ms: 180000
+  ttft:
+    p95_ms: null        # non-streaming /run -> TTFT not measured
+  reliability:
+    success_rate_min_pct: 85.0
+    error_rate_max_pct: 15.0
+    retry_rate_max_pct: 10.0
+  cost:
+    max_cost_per_transaction_usd: 0.50  # multiple model calls + BigQuery queries
+  cache:
+    hit_rate_min_pct: 0.0
+  load:
+    replay_concurrency: 2  # heavy pipeline; limited concurrency
+
+reference:
+  title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
+  source_document: "Profilingconfluence.MD"
+
+design_principles:
+  measure_outcomes_not_only_activity: true
+  attribute_cost_at_lowest_useful_level: true
+  separate_successful_and_failed_work: true
+  track_tail_latency_over_average: true
+  evaluate_quality_and_cost_together: true
+  governance_as_production_gate: true
+
+executive_metric_categories:
+  - unit_economics
+  - ai_usage
+  - data
+  - sla_slo_latency
+  - reliability
+  - quality
+  - scale
+  - infrastructure
+  - operations
+  - governance
+  - business_margin
+
+north_star:
+  cost_per_successful_outcome_usd:
+    max: null
+    description: "Total application cost / successful completed outcomes (§2, §3)."
+  cost_per_correct_or_accepted_answer_usd:
+    max: null
+    description: "Total cost / accepted or verified correct answers (§2, §10)."
+  gross_margin_per_ai_transaction_usd:
+    min: null
+    description: "Revenue per transaction minus cost per transaction (§2)."
+  p95_p99_latency_under_target_concurrency:
+    p95_ms_max: null
+    p99_ms_max: null
+    rationale: "§2, §6, §18 — set thresholds per product and concurrency model."
+  workflow_success_rate_under_production_load:
+    pct_min: null
+    rationale: "§2, §9, §18 — set minimum success rate under production load."
+
+unit_economics:
+  max_cost_per_transaction_usd: null
+  max_cost_per_user_session_usd: null
+  max_cost_per_workflow_usd: null
+  max_cost_per_successful_outcome_usd: null
+  max_cost_per_correct_answer_usd: null
+  report_cost_per_customer_or_tenant: true
+  report_gross_margin_per_transaction: true
+  report_cost_per_environment: true
+
+token_and_model:
+  report_input_tokens_per_transaction: true
+  report_output_tokens_per_transaction: true
+  report_total_tokens_per_transaction: true
+  report_tokens_per_successful_workflow: true
+  report_tokens_per_failed_workflow: true
+  report_model_calls_per_transaction: true
+  report_model_calls_per_workflow: true
+  report_tool_calls_per_transaction: true
+  report_retry_tokens: true
+  report_cache_hit_rate: true
+  max_model_calls_per_invocation: 12
+  max_tool_calls_per_invocation: 20
+
+data_access:
+  report_gb_accessed_per_transaction: true
+  report_documents_or_chunks_retrieved_per_transaction: true
+  report_vector_db_queries_per_transaction: true
+  report_data_egress_cost_attribution: true
+  retrieval_success_rate_pct_min: null
+
+latency:
+  report_p50: true
+  report_p90: true
+  report_p95: true
+  report_p99: true
+  p95_ms_max: null
+  p99_ms_max: null
+  ttft_p95_ms_max: null
+  time_to_final_token_p95_ms_max: null
+  end_to_end_transaction_p95_ms_max: null
+  report_component_latency_attribution:
+    - model
+    - tool
+    - network
+    - bigquery
+
+throughput_and_scale:
+  report_tps: true
+  report_rps: true
+  report_concurrent_users_or_sessions: true
+  report_tokens_per_second: true
+  report_queue_depth: true
+  report_autoscaling_response_time: true
+  max_sustainable_load_before_slo_breach:
+    rationale: "§2, §7 — measure highest load before SLO breach."
+  min_rps_sustained: null
+  target_rps: null
+
+infrastructure_cost:
+  report_compute_cost_per_transaction: true
+  report_gpu_cost_normalized: true
+  report_network_cost_per_transaction: true
+  report_observability_cost: true
+  report_idle_or_waste_signals: true
+
+reliability:
+  monthly_availability_pct_min: 99.9
+  report_error_rate: true
+  report_timeout_rate: true
+  report_model_error_rate: true
+  report_tool_failure_rate: true
+  report_retrieval_failure_rate: true
+  report_retry_rate: true
+  report_retry_success_rate: true
+  report_circuit_breaker_and_fallback: true
+  report_mttr_mtbf_and_incidents: true
+
+ai_quality:
+  report_task_success_rate: true
+  report_answer_correctness: true
+  report_groundedness: true
+  report_hallucination_rate: true
+  report_retrieval_precision_recall: true
+  report_citation_accuracy_and_faithfulness: true
+  report_human_acceptance_and_correction: true
+  report_escalation_rate: true
+  report_policy_violation_and_guardrail_rates: true
+
+agentic_workflow:
+  report_steps_per_workflow: true
+  report_llm_calls_per_workflow: true
+  report_tool_calls_per_workflow: true
+  report_failed_tool_calls_per_workflow: true
+  report_agent_retry_loops: true
+  max_steps_per_workflow: null
+  report_loop_detection: true
+  report_workflow_abandonment_rate: true
+
+observability:
+  min_trace_completeness_pct: 100.0
+  capture_prompt_and_model_versions: true
+  capture_tool_input_output_where_policy_allows: true
+  min_cost_attribution_completeness_pct: 80.0
+
+security_governance:
+  tenant_isolation_violations_max: 0
+  secrets_exposure_events_max: 0
+  guardrail_deterministic_pre_execution_pct_min: 100.0
+  report_pii_detection_and_leakage: true
+  report_prompt_injection_and_jailbreak_attempts: true
+
+tenant:
+  report_cost_per_tenant: true
+  report_margin_per_tenant: true
+  report_slo_compliance_per_tenant: true
+  report_failure_rate_per_tenant: true
+
+instrumentation_priority:
+  - cost_per_transaction
+  - cost_per_successful_transaction
+  - input_output_total_tokens_per_transaction
+  - model_calls_per_transaction
+  - tool_calls_per_transaction
+  - p50_p95_p99_latency
+  - workflow_success_rate
+  - error_rate
+  - cache_hit_rate
+  - gross_margin_per_transaction
+
+dashboards:
+  executive:
+    required: true
+    areas: [economics, quality, reliability, performance, scale, customer, risk]
+  engineering:
+    required: true
+    areas: [model_usage, platform, reliability, observability]
+  operations:
+    required: true
+    areas: [sla_slo, incidents, support, governance, cost_control]
+
+recommended_slo_examples:
+  availability_monthly_pct_min: 99.9
+  guardrail_enforcement_pct_min: 100.0
+  tenant_isolation_cross_tenant_violations_max: 0
+  production_transactions_with_trace_id_pct_min: 100.0
+  cost_attribution_completeness_pct_min: 80.0
+
+balanced_dimensions:
+  - cost
+  - tokens
+  - model
+  - data
+  - performance
+  - scale
+  - infrastructure
+  - reliability
+  - quality
+  - governance
+  - tenant
+
+primary_evaluation_question: >
+  How much does it cost to produce a correct, accepted, compliant, and successful
+  business outcome under production load? (§21)
+
+application:
+  package: fomc_research
+  architecture: multi_agent_pipeline
+  root_agent: root_agent
+  reference_model_in_sample: gemini-2.5-flash
+  adk_components:
+    - Agent
+    - SequentialAgent
+    - BigQueryTool
+    - HTTPTool
+  primary_workload_shape: pipeline_batch_analysis
+  notes:
+    - "6-agent pipeline for FOMC meeting analysis; heavy complexity."
+    - "BigQuery for Fed Futures data, HTTP for Federal Reserve website."
+    - "Multiple model calls per transaction; high cost per invocation."
+    - "Low concurrency (2) due to resource-intensive pipeline."

@@ -107,7 +107,7 @@ scenarios:
       target:
         provider: gcp
         region: us-central1
-        tdfRef: story-teller-gcp-us-central
+        tdfRef: youtube-analyst-gcp-us-central
       components:
       - youtube-analyst-service
   alternates:

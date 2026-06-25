@@ -1,10 +1,10 @@
 apiVersion: tdf.7sg.ai/v1
 kind: TargetDefinition
 metadata:
-  name: story-teller-gcp-us-central
+  name: youtube-analyst-gcp-us-central
   displayName: GCP US Central - Cloud Run + Vertex AI
   description: >
-    GCP target for the Story Teller agent. Cloud Run for serverless
+    GCP target for the YouTube Analyst agent. Cloud Run for serverless
     container hosting and Vertex AI for Gemini model access.
   version: "1.1.0"
   tags:

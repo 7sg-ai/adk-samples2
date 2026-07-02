@@ -1,0 +1,11 @@
+# SLA folder manifest — travel-concierge
+version: 1
+reference:
+  title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
+  source_document: "Profilingconfluence.MD"
+files:
+  - path: operating_sla.yaml
+    role: canonical
+    summary: >-
+      Profilingconfluence.MD §1–§21 operating objectives, bound to the multi-agent
+      travel planning concierge (trip planner, booking, guide) in travel_concierge.

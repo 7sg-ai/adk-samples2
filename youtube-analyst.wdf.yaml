@@ -63,6 +63,13 @@ secrets:
       provider: gcp-secret-manager
       vaultRef: gcp-main
       key: deploy-service-account-key
+  - name: youtube-data-api-key
+    injectAs: env
+    envVar: YOUTUBE_API_KEY
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: youtube-data-api-key
 dataSources:
   inputs: []
   outputs: []
@@ -85,6 +92,7 @@ scenarios:
           - name: GOOGLE_GENAI_USE_VERTEXAI
             value: 'true'
           envFromSecretRefs:
+          - youtube-data-api-key
           - google-cloud-project
           - google-cloud-location
           resources:

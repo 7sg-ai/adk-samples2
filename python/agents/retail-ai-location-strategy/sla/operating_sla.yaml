@@ -1,37 +1,43 @@
-# Operating SLA — retail-ai-location-strategy (ADK sample agent)
+# Operating SLA — retail-ai-location-strategy (ADK sample)
 #
 # Sole normative reference for structure and metrics:
 #   Profilingconfluence.MD — "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
 # Section numbers below refer to that document only.
 #
-# 8-agent sequential pipeline for retail location intelligence.
-# Uses Google Search, Maps Places API, Python code execution, Imagen.
-# Heavy complexity, long-running pipeline with multiple external API calls.
+# Service-level objectives for the retail location strategy agent: geospatial analysis,
+# competitor mapping, demographic scoring, and multi-agent location evaluation pipeline.
+# See README.md and retail_ai_location_strategy/. Adjust numeric targets per environment.
 #
 version: 1
 
+# Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
+# Data-informed (observed profiling + headroom). retail-ai-location-strategy observed
+# (concurrency 3): success ~80%, latency p50 ~30s / p95 ~65s, cost ~$0.10/txn.
 slos:
   latency:
-    p50_ms: 60000       # heavy 6-stage pipeline; Search + Maps + code exec + image gen
-    p95_ms: 150000
-    p99_ms: 240000
+    p50_ms: 30000
+    p95_ms: 65000
+    p99_ms: 100000
   ttft:
-    p95_ms: null        # non-streaming /run -> TTFT not measured
+    p95_ms: null
   reliability:
-    success_rate_min_pct: 80.0    # complex pipeline; multiple external APIs can fail
+    success_rate_min_pct: 80.0
     error_rate_max_pct: 20.0
-    retry_rate_max_pct: 15.0
+    retry_rate_max_pct: 10.0
   cost:
-    max_cost_per_transaction_usd: 0.80  # multiple model calls + Maps API + Imagen
+    max_cost_per_transaction_usd: 0.10
   cache:
     hit_rate_min_pct: 0.0
   load:
-    replay_concurrency: 2  # heavy pipeline with external API rate limits
+    replay_concurrency: 3   # heavy geospatial pipeline; limited concurrency
 
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"
 
+# ---------------------------------------------------------------------------
+# §19 Key design principles (non-numeric; enforced by how SLOs are interpreted)
+# ---------------------------------------------------------------------------
 design_principles:
   measure_outcomes_not_only_activity: true
   attribute_cost_at_lowest_useful_level: true
@@ -40,6 +46,9 @@ design_principles:
   evaluate_quality_and_cost_together: true
   governance_as_production_gate: true
 
+# ---------------------------------------------------------------------------
+# §1 Executive summary — categories this agent must support in telemetry
+# ---------------------------------------------------------------------------
 executive_metric_categories:
   - unit_economics
   - ai_usage
@@ -53,6 +62,9 @@ executive_metric_categories:
   - governance
   - business_margin
 
+# ---------------------------------------------------------------------------
+# §2 Recommended north star — quantitative SLO hooks
+# ---------------------------------------------------------------------------
 north_star:
   cost_per_successful_outcome_usd:
     max: null
@@ -69,8 +81,11 @@ north_star:
     rationale: "§2, §6, §18 — set thresholds per product and concurrency model."
   workflow_success_rate_under_production_load:
     pct_min: null
-    rationale: "§2, §9, §18 — set minimum success rate under production load."
+    rationale: "§2, §9, §18 — set minimum success rate under production load (framework gives no default %)."
 
+# ---------------------------------------------------------------------------
+# §3 Unit economics
+# ---------------------------------------------------------------------------
 unit_economics:
   max_cost_per_transaction_usd: null
   max_cost_per_user_session_usd: null
@@ -81,6 +96,9 @@ unit_economics:
   report_gross_margin_per_transaction: true
   report_cost_per_environment: true
 
+# ---------------------------------------------------------------------------
+# §4 Token & model usage
+# ---------------------------------------------------------------------------
 token_and_model:
   report_input_tokens_per_transaction: true
   report_output_tokens_per_transaction: true
@@ -92,16 +110,26 @@ token_and_model:
   report_tool_calls_per_transaction: true
   report_retry_tokens: true
   report_cache_hit_rate: true
-  max_model_calls_per_invocation: 20
-  max_tool_calls_per_invocation: 30
+  max_model_calls_per_location_analysis_session: null
+  max_tool_calls_per_location_analysis_session: null
 
+# ---------------------------------------------------------------------------
+# §5 Data access, storage & retrieval — includes Maps Places API, competitor
+# search fan-out, demographic data retrieval; attribute retrieval and API cost.
+# ---------------------------------------------------------------------------
 data_access:
   report_gb_accessed_per_transaction: true
   report_documents_or_chunks_retrieved_per_transaction: true
   report_vector_db_queries_per_transaction: true
   report_data_egress_cost_attribution: true
   retrieval_success_rate_pct_min: null
+  retrieval_success_rate_rationale: "§18 — set minimum retrieval success rate when retrieval is used."
 
+# ---------------------------------------------------------------------------
+# §6 Latency & SLA/SLO — report percentiles and decomposition (§6); numeric
+# latency SLOs are product-defined ("under defined threshold", §18); see
+# recommended_slo_examples for illustration only.
+# ---------------------------------------------------------------------------
 latency:
   report_p50: true
   report_p90: true
@@ -110,17 +138,23 @@ latency:
   p95_ms_max: null
   p99_ms_max: null
   ttft_p95_ms_max: null
+  ttft_rationale: "§6, §18 — first token within product streaming threshold."
   time_to_final_token_p95_ms_max: null
   end_to_end_transaction_p95_ms_max: null
   report_component_latency_attribution:
+    - authentication
+    - routing
+    - retrieval
     - model
     - tool
+    - orchestration
+    - guardrail
+    - post_processing
     - network
-    - google_search
-    - maps_places_api
-    - code_execution
-    - image_generation
 
+# ---------------------------------------------------------------------------
+# §7 Throughput & scalability
+# ---------------------------------------------------------------------------
 throughput_and_scale:
   report_tps: true
   report_rps: true
@@ -129,10 +163,13 @@ throughput_and_scale:
   report_queue_depth: true
   report_autoscaling_response_time: true
   max_sustainable_load_before_slo_breach:
-    rationale: "§2, §7 — measure highest load before SLO breach."
+    rationale: "§2, §7 — measure highest load before SLO breach; framework gives no default number."
   min_rps_sustained: null
   target_rps: null
 
+# ---------------------------------------------------------------------------
+# §8 Infrastructure cost
+# ---------------------------------------------------------------------------
 infrastructure_cost:
   report_compute_cost_per_transaction: true
   report_gpu_cost_normalized: true
@@ -140,8 +177,15 @@ infrastructure_cost:
   report_observability_cost: true
   report_idle_or_waste_signals: true
 
+# ---------------------------------------------------------------------------
+# §9 Reliability & availability — measure all metrics in framework table; numeric
+# gates below mirror §18 where fixed; otherwise set product thresholds locally.
+# ---------------------------------------------------------------------------
 reliability:
   monthly_availability_pct_min: 99.9
+  monthly_availability_rationale: "§18 — example monthly availability."
+  min_workflow_success_rate_pct: null
+  min_workflow_success_rationale: "§18 — workflows must meet product-defined success rate under load."
   report_error_rate: true
   report_timeout_rate: true
   report_model_error_rate: true
@@ -151,7 +195,17 @@ reliability:
   report_retry_success_rate: true
   report_circuit_breaker_and_fallback: true
   report_mttr_mtbf_and_incidents: true
+  max_error_rate_pct: null
+  max_timeout_rate_pct: null
+  max_model_error_rate_pct: null
+  max_tool_failure_rate_pct: null
+  max_retrieval_failure_rate_pct: null
+  max_retry_rate_pct: null
+  min_retry_success_rate_pct: null
 
+# ---------------------------------------------------------------------------
+# §10 AI quality — framework requires tracking; set numeric SLOs per product.
+# ---------------------------------------------------------------------------
 ai_quality:
   report_task_success_rate: true
   report_answer_correctness: true
@@ -162,7 +216,17 @@ ai_quality:
   report_human_acceptance_and_correction: true
   report_escalation_rate: true
   report_policy_violation_and_guardrail_rates: true
+  min_task_success_rate_pct: null
+  min_answer_correctness_or_acceptance_rate_pct: null
+  min_groundedness_score: null
+  max_hallucination_rate_pct: null
+  max_human_escalation_rate_pct: null
+  report_guardrail_rejection_and_false_pos_neg: true
 
+# ---------------------------------------------------------------------------
+# §11 Agentic workflow — multi-agent pipeline with market_analyst_agent and
+# competitor_analyst_agent; sequential geospatial analysis and location scoring.
+# ---------------------------------------------------------------------------
 agentic_workflow:
   report_steps_per_workflow: true
   report_llm_calls_per_workflow: true
@@ -170,58 +234,104 @@ agentic_workflow:
   report_failed_tool_calls_per_workflow: true
   report_agent_retry_loops: true
   max_steps_per_workflow: null
+  max_llm_calls_per_workflow: null
+  max_tool_calls_per_workflow: null
+  max_plan_revisions: null
   report_loop_detection: true
   report_workflow_abandonment_rate: true
 
+# ---------------------------------------------------------------------------
+# §12 Observability & traceability
+# ---------------------------------------------------------------------------
 observability:
   min_trace_completeness_pct: 100.0
+  trace_rationale: "§18 — production transactions carry trace identifiers."
   capture_prompt_and_model_versions: true
   capture_tool_input_output_where_policy_allows: true
   min_cost_attribution_completeness_pct: 80.0
+  cost_attribution_rationale: "§18 — cost mapped to tenant/workflow."
+  min_latency_attribution_completeness_pct: null
 
+# ---------------------------------------------------------------------------
+# §13 Security, compliance & governance — hard gates where measured
+# ---------------------------------------------------------------------------
 security_governance:
   tenant_isolation_violations_max: 0
+  tenant_isolation_rationale: "§13 required gate — zero violations."
   secrets_exposure_events_max: 0
   guardrail_deterministic_pre_execution_pct_min: 100.0
+  guardrail_rationale: "§18 — deterministic policy checks before execution."
   report_pii_detection_and_leakage: true
   report_prompt_injection_and_jailbreak_attempts: true
+  min_audit_log_completeness_pct: null
 
+# ---------------------------------------------------------------------------
+# §14 Customer & tenant level
+# ---------------------------------------------------------------------------
 tenant:
   report_cost_per_tenant: true
   report_margin_per_tenant: true
   report_slo_compliance_per_tenant: true
   report_failure_rate_per_tenant: true
 
+# ---------------------------------------------------------------------------
+# §16 Instrumentation priority (ordered; instrument in this order first)
+# ---------------------------------------------------------------------------
 instrumentation_priority:
   - cost_per_transaction
   - cost_per_successful_transaction
   - input_output_total_tokens_per_transaction
   - model_calls_per_transaction
   - tool_calls_per_transaction
+  - gb_accessed_per_transaction
+  - vector_db_queries_per_transaction
   - p50_p95_p99_latency
+  - time_to_first_token
   - workflow_success_rate
+  - retry_rate
   - error_rate
+  - human_escalation_rate
+  - accepted_or_correct_answer_rate
+  - cost_by_customer_or_tenant
+  - storage_growth_rate
+  - gpu_cpu_utilization
   - cache_hit_rate
+  - guardrail_rejection_rate
   - gross_margin_per_transaction
 
+# ---------------------------------------------------------------------------
+# §17 Recommended dashboard structure — reporting obligations (boolean)
+# ---------------------------------------------------------------------------
 dashboards:
   executive:
     required: true
     areas: [economics, quality, reliability, performance, scale, customer, risk]
   engineering:
     required: true
-    areas: [model_usage, platform, reliability, observability]
+    areas: [model_usage, rag, agentic_workflows, platform, reliability, observability]
   operations:
     required: true
     areas: [sla_slo, incidents, support, governance, cost_control]
 
+# ---------------------------------------------------------------------------
+# §18 Recommended SLO examples — numeric illustrations taken from the framework table
+# (replace with product-defined thresholds where the doc uses "defined threshold").
+# ---------------------------------------------------------------------------
 recommended_slo_examples:
   availability_monthly_pct_min: 99.9
+  p95_response_time_ms_max: null
+  p99_response_time_ms_max: null
+  time_to_first_token_within_streaming_threshold_ms_p95: null
+  workflow_success_rate_pct_min: null
+  retrieval_success_rate_pct_min: null
   guardrail_enforcement_pct_min: 100.0
   tenant_isolation_cross_tenant_violations_max: 0
   production_transactions_with_trace_id_pct_min: 100.0
   cost_attribution_completeness_pct_min: 80.0
 
+# ---------------------------------------------------------------------------
+# §20 Final recommended metric set — dimensions that must be representable in reports
+# ---------------------------------------------------------------------------
 balanced_dimensions:
   - cost
   - tokens
@@ -232,42 +342,42 @@ balanced_dimensions:
   - infrastructure
   - reliability
   - quality
+  - agentic
   - governance
   - tenant
 
+# ---------------------------------------------------------------------------
+# §21 Summary — evaluation question (informational)
+# ---------------------------------------------------------------------------
 primary_evaluation_question: >
   How much does it cost to produce a correct, accepted, compliant, and successful
   business outcome under production load? (§21)
 
+# ---------------------------------------------------------------------------
+# Application binding: retail-ai-location-strategy (see README.md, retail_ai_location_strategy/)
+# ---------------------------------------------------------------------------
 application:
-  package: app
-  architecture: sequential_pipeline
-  root_agent: location_strategy_pipeline
-  reference_model_in_sample: gemini-2.5-pro
+  package: retail_ai_location_strategy
+  architecture: multi_agent_pipeline
+  readme_summary: >-
+    Retail location strategy agent: multi-agent geospatial analysis pipeline with
+    competitor mapping fan-out, demographic scoring, and location evaluation using
+    Maps Places API and heavy Gemini reasoning for site selection decisions.
+  interaction_type: conversational_workflow
+  root_agent: retail_location_strategy_agent
   adk_components:
-    - SequentialAgent
     - Agent
-    - google_search
-    - maps_places_api
-    - code_execution
-    - imagen
-  stages:
-    - name: MarketResearchAgent
-      role: web_research_with_google_search
-    - name: CompetitorMappingAgent
-      role: competitor_mapping_with_maps_places
-    - name: GapAnalysisAgent
-      role: quantitative_analysis_with_code_execution
-    - name: StrategyAdvisorAgent
-      role: strategic_synthesis
-    - name: ReportGeneratorAgent
-      role: html_report_generation
-    - name: InfographicGeneratorAgent
-      role: visual_infographic_with_imagen
-  primary_workload_shape: pipeline_location_intelligence
+    - FunctionTool
+  sub_agents:
+    - market_analyst_agent
+    - competitor_analyst_agent
+  tools_highlighted_in_readme:
+    - maps_places_search
+    - competitor_mapper
+    - demographic_analyzer
+    - location_scorer
+  primary_workload_shape: geospatial_analysis_and_scoring
   notes:
-    - "6-stage sequential pipeline; heaviest agent in this test suite."
-    - "External APIs: Google Search, Maps Places, Imagen — each adds latency and cost."
-    - "Code execution stage runs Python for quantitative gap analysis."
-    - "Low concurrency (2) due to Maps API rate limits and pipeline depth."
-    - "Quality SLOs should measure report completeness and recommendation relevance."
+    - "Multiple sequential Maps API calls per analysis; competitor mapping fans out searches; heavy Gemini reasoning on location scoring; long-running analysis workload."
+    - "§5–§6 — Maps Places API fan-out drives retrieval latency; competitor search multiplies API cost; sequential pipeline compounds tail latency."
+    - "§11 — multi-agent pipeline with market_analyst_agent and competitor_analyst_agent creates deep workflow chains; track per-agent step counts and failure attribution."

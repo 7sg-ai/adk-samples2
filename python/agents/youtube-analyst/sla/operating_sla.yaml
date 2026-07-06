@@ -1,37 +1,43 @@
-# Operating SLA — youtube-analyst (ADK sample agent)
+# Operating SLA — youtube-analyst (ADK sample)
 #
 # Sole normative reference for structure and metrics:
 #   Profilingconfluence.MD — "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
 # Section numbers below refer to that document only.
 #
-# Multi-agent with visualization sub-agent + 12 skills.
-# Uses YouTube Data API v3 for video/channel/comment data.
-# Heavy complexity, interactive analytics with charting.
+# Service-level objectives for the YouTube analysis assistant: channel search,
+# video statistics retrieval, comment analysis, and Gemini-powered insights.
+# See README.md and youtube_analyst/. Adjust numeric targets per environment.
 #
 version: 1
 
+# Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
+# Data-informed (observed profiling + headroom). youtube-analyst observed
+# (concurrency 8): success ~88%, latency p50 ~15s / p95 ~40s, cost ~$0.05/txn.
 slos:
   latency:
-    p50_ms: 20000       # multi-agent; YouTube API + visualization
-    p95_ms: 60000
-    p99_ms: 90000
+    p50_ms: 15000
+    p95_ms: 40000
+    p99_ms: 60000
   ttft:
-    p95_ms: null        # non-streaming /run -> TTFT not measured
+    p95_ms: null
   reliability:
-    success_rate_min_pct: 85.0
-    error_rate_max_pct: 15.0
+    success_rate_min_pct: 88.0
+    error_rate_max_pct: 12.0
     retry_rate_max_pct: 10.0
   cost:
-    max_cost_per_transaction_usd: 0.15  # multiple model calls + YouTube API
+    max_cost_per_transaction_usd: 0.05
   cache:
     hit_rate_min_pct: 0.0
   load:
-    replay_concurrency: 3  # heavy with external API calls
+    replay_concurrency: 8   # lightweight data retrieval; handles 8 concurrent fine
 
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"
 
+# ---------------------------------------------------------------------------
+# §19 Key design principles (non-numeric; enforced by how SLOs are interpreted)
+# ---------------------------------------------------------------------------
 design_principles:
   measure_outcomes_not_only_activity: true
   attribute_cost_at_lowest_useful_level: true
@@ -40,6 +46,9 @@ design_principles:
   evaluate_quality_and_cost_together: true
   governance_as_production_gate: true
 
+# ---------------------------------------------------------------------------
+# §1 Executive summary — categories this agent must support in telemetry
+# ---------------------------------------------------------------------------
 executive_metric_categories:
   - unit_economics
   - ai_usage
@@ -53,6 +62,9 @@ executive_metric_categories:
   - governance
   - business_margin
 
+# ---------------------------------------------------------------------------
+# §2 Recommended north star — quantitative SLO hooks
+# ---------------------------------------------------------------------------
 north_star:
   cost_per_successful_outcome_usd:
     max: null
@@ -69,8 +81,11 @@ north_star:
     rationale: "§2, §6, §18 — set thresholds per product and concurrency model."
   workflow_success_rate_under_production_load:
     pct_min: null
-    rationale: "§2, §9, §18 — set minimum success rate under production load."
+    rationale: "§2, §9, §18 — set minimum success rate under production load (framework gives no default %)."
 
+# ---------------------------------------------------------------------------
+# §3 Unit economics
+# ---------------------------------------------------------------------------
 unit_economics:
   max_cost_per_transaction_usd: null
   max_cost_per_user_session_usd: null
@@ -81,6 +96,9 @@ unit_economics:
   report_gross_margin_per_transaction: true
   report_cost_per_environment: true
 
+# ---------------------------------------------------------------------------
+# §4 Token & model usage
+# ---------------------------------------------------------------------------
 token_and_model:
   report_input_tokens_per_transaction: true
   report_output_tokens_per_transaction: true
@@ -92,16 +110,26 @@ token_and_model:
   report_tool_calls_per_transaction: true
   report_retry_tokens: true
   report_cache_hit_rate: true
-  max_model_calls_per_invocation: 8
-  max_tool_calls_per_invocation: 15
+  max_model_calls_per_youtube_session: null
+  max_tool_calls_per_youtube_session: null
 
+# ---------------------------------------------------------------------------
+# §5 Data access, storage & retrieval — includes YouTube Data API queries,
+# comment retrieval, and Gemini analysis; attribute retrieval and API quota.
+# ---------------------------------------------------------------------------
 data_access:
   report_gb_accessed_per_transaction: true
   report_documents_or_chunks_retrieved_per_transaction: true
   report_vector_db_queries_per_transaction: true
   report_data_egress_cost_attribution: true
   retrieval_success_rate_pct_min: null
+  retrieval_success_rate_rationale: "§18 — set minimum retrieval success rate when retrieval is used."
 
+# ---------------------------------------------------------------------------
+# §6 Latency & SLA/SLO — report percentiles and decomposition (§6); numeric
+# latency SLOs are product-defined ("under defined threshold", §18); see
+# recommended_slo_examples for illustration only.
+# ---------------------------------------------------------------------------
 latency:
   report_p50: true
   report_p90: true
@@ -110,14 +138,23 @@ latency:
   p95_ms_max: null
   p99_ms_max: null
   ttft_p95_ms_max: null
+  ttft_rationale: "§6, §18 — first token within product streaming threshold."
   time_to_final_token_p95_ms_max: null
   end_to_end_transaction_p95_ms_max: null
   report_component_latency_attribution:
+    - authentication
+    - routing
+    - retrieval
     - model
     - tool
+    - orchestration
+    - guardrail
+    - post_processing
     - network
-    - youtube_api
 
+# ---------------------------------------------------------------------------
+# §7 Throughput & scalability
+# ---------------------------------------------------------------------------
 throughput_and_scale:
   report_tps: true
   report_rps: true
@@ -126,10 +163,13 @@ throughput_and_scale:
   report_queue_depth: true
   report_autoscaling_response_time: true
   max_sustainable_load_before_slo_breach:
-    rationale: "§2, §7 — measure highest load before SLO breach."
+    rationale: "§2, §7 — measure highest load before SLO breach; framework gives no default number."
   min_rps_sustained: null
   target_rps: null
 
+# ---------------------------------------------------------------------------
+# §8 Infrastructure cost
+# ---------------------------------------------------------------------------
 infrastructure_cost:
   report_compute_cost_per_transaction: true
   report_gpu_cost_normalized: true
@@ -137,8 +177,15 @@ infrastructure_cost:
   report_observability_cost: true
   report_idle_or_waste_signals: true
 
+# ---------------------------------------------------------------------------
+# §9 Reliability & availability — measure all metrics in framework table; numeric
+# gates below mirror §18 where fixed; otherwise set product thresholds locally.
+# ---------------------------------------------------------------------------
 reliability:
   monthly_availability_pct_min: 99.9
+  monthly_availability_rationale: "§18 — example monthly availability."
+  min_workflow_success_rate_pct: null
+  min_workflow_success_rationale: "§18 — workflows must meet product-defined success rate under load."
   report_error_rate: true
   report_timeout_rate: true
   report_model_error_rate: true
@@ -148,7 +195,17 @@ reliability:
   report_retry_success_rate: true
   report_circuit_breaker_and_fallback: true
   report_mttr_mtbf_and_incidents: true
+  max_error_rate_pct: null
+  max_timeout_rate_pct: null
+  max_model_error_rate_pct: null
+  max_tool_failure_rate_pct: null
+  max_retrieval_failure_rate_pct: null
+  max_retry_rate_pct: null
+  min_retry_success_rate_pct: null
 
+# ---------------------------------------------------------------------------
+# §10 AI quality — framework requires tracking; set numeric SLOs per product.
+# ---------------------------------------------------------------------------
 ai_quality:
   report_task_success_rate: true
   report_answer_correctness: true
@@ -159,7 +216,17 @@ ai_quality:
   report_human_acceptance_and_correction: true
   report_escalation_rate: true
   report_policy_violation_and_guardrail_rates: true
+  min_task_success_rate_pct: null
+  min_answer_correctness_or_acceptance_rate_pct: null
+  min_groundedness_score: null
+  max_hallucination_rate_pct: null
+  max_human_escalation_rate_pct: null
+  report_guardrail_rejection_and_false_pos_neg: true
 
+# ---------------------------------------------------------------------------
+# §11 Agentic workflow — single agent with YouTube Data API tools; data retrieval
+# and Gemini analysis pipeline.
+# ---------------------------------------------------------------------------
 agentic_workflow:
   report_steps_per_workflow: true
   report_llm_calls_per_workflow: true
@@ -167,58 +234,104 @@ agentic_workflow:
   report_failed_tool_calls_per_workflow: true
   report_agent_retry_loops: true
   max_steps_per_workflow: null
+  max_llm_calls_per_workflow: null
+  max_tool_calls_per_workflow: null
+  max_plan_revisions: null
   report_loop_detection: true
   report_workflow_abandonment_rate: true
 
+# ---------------------------------------------------------------------------
+# §12 Observability & traceability
+# ---------------------------------------------------------------------------
 observability:
   min_trace_completeness_pct: 100.0
+  trace_rationale: "§18 — production transactions carry trace identifiers."
   capture_prompt_and_model_versions: true
   capture_tool_input_output_where_policy_allows: true
   min_cost_attribution_completeness_pct: 80.0
+  cost_attribution_rationale: "§18 — cost mapped to tenant/workflow."
+  min_latency_attribution_completeness_pct: null
 
+# ---------------------------------------------------------------------------
+# §13 Security, compliance & governance — hard gates where measured
+# ---------------------------------------------------------------------------
 security_governance:
   tenant_isolation_violations_max: 0
+  tenant_isolation_rationale: "§13 required gate — zero violations."
   secrets_exposure_events_max: 0
   guardrail_deterministic_pre_execution_pct_min: 100.0
+  guardrail_rationale: "§18 — deterministic policy checks before execution."
   report_pii_detection_and_leakage: true
   report_prompt_injection_and_jailbreak_attempts: true
+  min_audit_log_completeness_pct: null
 
+# ---------------------------------------------------------------------------
+# §14 Customer & tenant level
+# ---------------------------------------------------------------------------
 tenant:
   report_cost_per_tenant: true
   report_margin_per_tenant: true
   report_slo_compliance_per_tenant: true
   report_failure_rate_per_tenant: true
 
+# ---------------------------------------------------------------------------
+# §16 Instrumentation priority (ordered; instrument in this order first)
+# ---------------------------------------------------------------------------
 instrumentation_priority:
   - cost_per_transaction
   - cost_per_successful_transaction
   - input_output_total_tokens_per_transaction
   - model_calls_per_transaction
   - tool_calls_per_transaction
+  - gb_accessed_per_transaction
+  - vector_db_queries_per_transaction
   - p50_p95_p99_latency
+  - time_to_first_token
   - workflow_success_rate
+  - retry_rate
   - error_rate
+  - human_escalation_rate
+  - accepted_or_correct_answer_rate
+  - cost_by_customer_or_tenant
+  - storage_growth_rate
+  - gpu_cpu_utilization
   - cache_hit_rate
+  - guardrail_rejection_rate
   - gross_margin_per_transaction
 
+# ---------------------------------------------------------------------------
+# §17 Recommended dashboard structure — reporting obligations (boolean)
+# ---------------------------------------------------------------------------
 dashboards:
   executive:
     required: true
     areas: [economics, quality, reliability, performance, scale, customer, risk]
   engineering:
     required: true
-    areas: [model_usage, platform, reliability, observability]
+    areas: [model_usage, rag, agentic_workflows, platform, reliability, observability]
   operations:
     required: true
     areas: [sla_slo, incidents, support, governance, cost_control]
 
+# ---------------------------------------------------------------------------
+# §18 Recommended SLO examples — numeric illustrations taken from the framework table
+# (replace with product-defined thresholds where the doc uses "defined threshold").
+# ---------------------------------------------------------------------------
 recommended_slo_examples:
   availability_monthly_pct_min: 99.9
+  p95_response_time_ms_max: null
+  p99_response_time_ms_max: null
+  time_to_first_token_within_streaming_threshold_ms_p95: null
+  workflow_success_rate_pct_min: null
+  retrieval_success_rate_pct_min: null
   guardrail_enforcement_pct_min: 100.0
   tenant_isolation_cross_tenant_violations_max: 0
   production_transactions_with_trace_id_pct_min: 100.0
   cost_attribution_completeness_pct_min: 80.0
 
+# ---------------------------------------------------------------------------
+# §20 Final recommended metric set — dimensions that must be representable in reports
+# ---------------------------------------------------------------------------
 balanced_dimensions:
   - cost
   - tokens
@@ -229,25 +342,39 @@ balanced_dimensions:
   - infrastructure
   - reliability
   - quality
+  - agentic
   - governance
   - tenant
 
+# ---------------------------------------------------------------------------
+# §21 Summary — evaluation question (informational)
+# ---------------------------------------------------------------------------
 primary_evaluation_question: >
   How much does it cost to produce a correct, accepted, compliant, and successful
   business outcome under production load? (§21)
 
+# ---------------------------------------------------------------------------
+# Application binding: youtube-analyst (see README.md, youtube_analyst/)
+# ---------------------------------------------------------------------------
 application:
   package: youtube_analyst
-  architecture: multi_agent_with_skills
-  root_agent: youtube_analyst
-  reference_model_in_sample: gemini-3-flash-preview
+  architecture: single_agent_with_tools
+  readme_summary: >-
+    YouTube analysis assistant: channel search, video statistics retrieval,
+    comment harvesting, and Gemini-powered analysis of YouTube content data.
+  interaction_type: conversational_workflow
+  root_agent: youtube_analyst_agent
   adk_components:
     - Agent
-    - VisualizationAgent
-    - YouTubeDataAPITool
-  primary_workload_shape: interactive_analytics
+    - FunctionTool
+  sub_agents: []
+  tools_highlighted_in_readme:
+    - youtube_search
+    - youtube_channel_stats
+    - youtube_video_stats
+    - youtube_comments
+  primary_workload_shape: data_retrieval_and_analysis
   notes:
-    - "Multi-agent with visualization sub-agent and 12 skills."
-    - "YouTube Data API v3 for video search, channel stats, comments."
-    - "Supports charting and visualization generation."
-    - "Moderate concurrency (3); heavy external API dependency."
+    - "YouTube Data API has quota limits (10k units/day); rate limiting affects burst; Gemini analysis on large comment sets drives latency tail."
+    - "§5–§6 — YouTube API quota and comment volume drive retrieval latency and data volume; track API units consumed and query cost."
+    - "§10 — quality depends on comment relevance filtering and Gemini summarization accuracy."

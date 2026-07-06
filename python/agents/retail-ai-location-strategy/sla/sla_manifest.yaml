@@ -1,4 +1,4 @@
-# SLA folder manifest — retail_ai_location_strategy
+# SLA folder manifest — retail-ai-location-strategy
 version: 1
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
@@ -7,7 +7,6 @@ files:
   - path: operating_sla.yaml
     role: canonical
     summary: >-
-      Operating objectives and instrumentation obligations derived from
-      Profilingconfluence.MD (sections §1–§21), bound to the 8-agent
-      retail location strategy pipeline with Google Search, Maps Places API,
-      code execution, and image generation.
+      Profilingconfluence.MD §1–§21 operating objectives, bound to the multi-agent
+      retail location analysis pipeline (market analyst, competitor analyst) in
+      retail_ai_location_strategy.

@@ -1,0 +1,150 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: high-volume-document-analyzer
+  description: Google ADK agent 'high-volume-document-analyzer' served on port 8080 (adk web). Deployable
+    to GCP Cloud Run via the shared story-teller-gcp-us-central target.
+  tags:
+    env: dev
+  labels:
+    app: high-volume-document-analyzer
+    framework: google-adk
+  annotations:
+    sherpa.7sg.ai/origin: adk-samples
+  version: 0.1.1
+workload:
+  source:
+    git:
+      repoUrl: https://github.com/nadeem7sg/adk-samples2
+      ref: main
+      path: python/agents/high-volume-document-analyzer
+security:
+  policies:
+    secretsInEnvAllowed: true
+secrets:
+  provider: external-secrets
+  vaults:
+  - name: gcp-main
+    projectIdRef: gcp-secret-manager-project-id
+    tokenRef: gcp-sa-key-json
+  secretRefs:
+  - name: google-cloud-project
+    injectAs: env
+    envVar: GOOGLE_CLOUD_PROJECT
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: google-cloud-project
+  - name: google-cloud-location
+    injectAs: env
+    envVar: GOOGLE_CLOUD_LOCATION
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: google-cloud-location
+  - name: google-api-key
+    injectAs: env
+    envVar: GOOGLE_API_KEY
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: google-api-key
+  - name: deploy-service-account-key
+    injectAs: file
+    filePath: /credentials/deploy-sa.json
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: deploy-service-account-key
+  - name: deploy-service-account-key-json
+    injectAs: env
+    envVar: GCP_SA_KEY_JSON
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: deploy-service-account-key
+dataSources:
+  inputs: []
+  outputs: []
+scenarios:
+  native:
+    description: Google ADK agent 'high-volume-document-analyzer' served on port 8080 (adk web). Deployable
+      to GCP Cloud Run via the shared story-teller-gcp-us-central target.
+    topology:
+      components:
+      - name: high-volume-document-analyzer-service
+        role: api
+        runtime:
+          platform: serverless
+          regions:
+          - us-central1
+          image:
+            repository: high-volume-document-analyzer
+            tag: latest
+          env:
+          - name: GOOGLE_GENAI_USE_VERTEXAI
+            value: 'true'
+          envFromSecretRefs:
+          - google-cloud-project
+          - google-cloud-location
+          resources:
+            cpu: '1'
+            memory: 2Gi
+          autoscaling:
+            minReplicas: 1
+            maxReplicas: 5
+            policy:
+              metric: cpu
+              target: 70
+        endpoints:
+        - name: http
+          port: 8080
+          exposure: public
+          protocol: http
+          path: /
+    deployments:
+    - name: high-volume-document-analyzer-gcp-us-central
+      target:
+        provider: gcp
+        region: us-central1
+        tdfRef: story-teller-gcp-us-central
+      components:
+      - high-volume-document-analyzer-service
+  alternates:
+  - name: local-dev
+    description: Local development using a Gemini API key (no Vertex AI).
+    topology:
+      components:
+      - name: high-volume-document-analyzer-service
+        role: api
+        runtime:
+          platform: custom
+          regions:
+          - local
+          image:
+            repository: high-volume-document-analyzer
+            tag: dev
+          env:
+          - name: GOOGLE_GENAI_USE_VERTEXAI
+            value: 'false'
+          envFromSecretRefs:
+          - google-api-key
+          resources:
+            cpu: '1'
+            memory: 1Gi
+          autoscaling:
+            minReplicas: 1
+            maxReplicas: 1
+        endpoints:
+        - name: http
+          port: 8080
+          exposure: public
+          protocol: http
+          path: /
+    deployments:
+    - name: local
+      target:
+        provider: onprem
+        region: local
+      components:
+      - high-volume-document-analyzer-service

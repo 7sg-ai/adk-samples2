@@ -1,0 +1,11 @@
+# SLA folder manifest — gemma-food-tour-guide
+version: 1
+reference:
+  title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
+  source_document: "Profilingconfluence.MD"
+files:
+  - path: operating_sla.yaml
+    role: canonical
+    summary: >-
+      Profilingconfluence.MD §1–§21 operating objectives, bound to the Gemma-powered
+      food tour guide with MCP tools in gemma_food_tour_guide.

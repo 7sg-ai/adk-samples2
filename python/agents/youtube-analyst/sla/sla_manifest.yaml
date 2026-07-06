@@ -1,4 +1,4 @@
-# SLA folder manifest — youtube_analyst
+# SLA folder manifest — youtube-analyst
 version: 1
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
@@ -7,6 +7,5 @@ files:
   - path: operating_sla.yaml
     role: canonical
     summary: >-
-      Operating objectives and instrumentation obligations derived from
-      Profilingconfluence.MD (sections §1–§21), bound to the multi-agent
-      YouTube analyst with visualization sub-agent and 12 skills.
+      Profilingconfluence.MD §1–§21 operating objectives, bound to the YouTube
+      data retrieval and analysis agent in youtube_analyst.

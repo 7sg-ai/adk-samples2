@@ -63,13 +63,13 @@ secrets:
       provider: gcp-secret-manager
       vaultRef: gcp-main
       key: deploy-service-account-key
-  - name: youtube-data-api-key
+  - name: youtube-api-key
     injectAs: env
     envVar: YOUTUBE_API_KEY
     externalRef:
       provider: gcp-secret-manager
       vaultRef: gcp-main
-      key: youtube-data-api-key
+      key: youtube-api-key
 dataSources:
   inputs: []
   outputs: []

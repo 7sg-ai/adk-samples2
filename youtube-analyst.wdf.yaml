@@ -92,7 +92,7 @@ scenarios:
           - name: GOOGLE_GENAI_USE_VERTEXAI
             value: 'true'
           envFromSecretRefs:
-          - youtube-data-api-key
+          - youtube-api-key
           - google-cloud-project
           - google-cloud-location
           resources:

@@ -49,6 +49,13 @@ secrets:
       provider: gcp-secret-manager
       vaultRef: gcp-main
       key: google-api-key
+  - name: google-maps-key
+    injectAs: env
+    envVar: GOOGLE_GEOMAP_API_KEY
+    externalRef:
+      provider: gcp-secret-manager
+      vaultRef: gcp-main
+      key: google-maps-key
   - name: deploy-service-account-key
     injectAs: file
     filePath: /credentials/deploy-sa.json
@@ -87,6 +94,7 @@ scenarios:
           envFromSecretRefs:
           - google-cloud-project
           - google-cloud-location
+          - google-maps-key
           resources:
             cpu: '1'
             memory: 2Gi

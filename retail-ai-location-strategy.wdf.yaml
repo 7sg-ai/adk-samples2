@@ -63,13 +63,13 @@ secrets:
       provider: gcp-secret-manager
       vaultRef: gcp-main
       key: deploy-service-account-key
-  - name: google-maps-api-key
+  - name: google-maps-key
     injectAs: env
     envVar: MAPS_API_KEY
     externalRef:
       provider: gcp-secret-manager
       vaultRef: gcp-main
-      key: google-maps-api-key
+      key: google-maps-key
 dataSources:
   inputs: []
   outputs: []
@@ -92,7 +92,7 @@ scenarios:
           - name: GOOGLE_GENAI_USE_VERTEXAI
             value: 'true'
           envFromSecretRefs:
-          - google-maps-api-key
+          - google-maps-key
           - google-cloud-project
           - google-cloud-location
           resources:

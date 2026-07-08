@@ -45,7 +45,7 @@ def get_maps_mcp_toolset():
 maps_toolset = get_maps_mcp_toolset()
 
 root_agent = LlmAgent(
-    model=Gemini(model="gemma-4-31b-it"),
+    model=Gemini(model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash")),
     name='food_tour_agent',
     instruction=system_instruction,
     tools=[maps_toolset]

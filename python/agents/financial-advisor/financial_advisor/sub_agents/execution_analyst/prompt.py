@@ -17,7 +17,7 @@
 EXECUTION_ANALYST_PROMPT = """
 
 To generate a detailed and reasoned execution plan for the provided_trading_strategy.
-This plan must be meticulously tailored to the user_risk_attitude, user_investment_period, and user_execution_preferences.
+This plan must be meticulously tailored to the client_risk_profile, client_investment_goals, and user_execution_preferences.
 The output should be rich in factual analysis, exploring optimal strategies and precise moments for entering, holding, accumulating,
 partially selling, and fully exiting positions.
 
@@ -27,12 +27,12 @@ provided_trading_strategy: (User-defined strategy) The specific trading strategy
 (e.g., "Long-only swing trading on QQQ based on breakouts from consolidation patterns after oversold RSI signals,"
 "Mean reversion strategy for WTI Crude Oil futures using Bollinger Bands on H1 timeframe,"
 "Dollar-cost averaging into VOO ETF for long-term holding"). The execution plan must directly operationalize this strategy.
-user_risk_attitude: (User-defined, e.g., Very Conservative, Conservative, Balanced, Aggressive, Very Aggressive).
+client_risk_profile: (Salesforce-loaded or user-defined, e.g., Very Conservative, Conservative, Balanced, Aggressive, Very Aggressive).
 This dictates acceptable volatility, drawdown tolerance, and influences choices like stop-loss proximity, order type aggressiveness,
 and willingness to scale in/out.
-user_investment_period: (User-defined, e.g., Intraday, Short-term (days to weeks), Medium-term (weeks to months),
-Long-term (months to years)). This impacts the relevance of different chart timeframes, frequency of trade review,
-and sensitivity to short-term market noise versus longer-term trends.
+client_investment_goals: (Salesforce-loaded or user-defined goals, including an investment horizon when specified).
+The goals determine the desired outcome; any stated horizon impacts the relevance of different chart timeframes,
+frequency of trade review, and sensitivity to short-term market noise versus longer-term trends.
 user_execution_preferences: (User-defined, e.g., Preferred broker(s) [note if this implies specific order types or commission structures],
 preference for limit orders over market orders, desire for low latency vs. cost optimization,
 specific order algorithms like TWAP/VWAP if available and relevant).
@@ -40,12 +40,12 @@ Requested Output: Detailed Execution Strategy Analysis
 
 Provide a comprehensive analysis structured as follows. For each section, deliver detailed reasoning,
 integrate factual trading principles, and explicitly link recommendations back to the implications of the provided_trading_strategy,
-user_risk_attitude, user_investment_period, and user_execution_preferences.
+client_risk_profile, client_investment_goals, and user_execution_preferences.
 
 EXAMPLE OF STRATEGIES, you can formulate more
 
 I. Foundational Execution Philosophy:
-* Synthesize how the combination of the user's risk_attitude, investment_period,
+* Synthesize how the combination of the client's risk profile, investment goals,
  and execution_preferences fundamentally shapes the recommended approach to executing the provided_trading_strategy.
 * Identify any immediate constraints or priorities imposed by these inputs
 (e.g., a "Conservative" risk attitude might deprioritize market orders during high volatility for the provided_trading_strategy).
@@ -54,31 +54,31 @@ II. Entry Execution Strategy:
 * Optimal Entry Conditions & Timing:
 * Based on the provided_trading_strategy, what precise confluence of signals/events constitutes a high-probability entry point?
 * Discuss considerations for optimal entry timing (e.g., specific market sessions, avoiding news embargoes,
-candlestick pattern confirmation, volume analysis) relevant to the user_investment_period.
+candlestick pattern confirmation, volume analysis) relevant to the investment goals and any stated horizon.
 * Order Types & Placement:
 * Recommend specific order types (e.g., Limit, Market, Stop-Limit, Conditional Orders). Justify choices based on the need for price precision
-vs. certainty of execution, considering market liquidity, user_risk_attitude, and user_execution_preferences.
+vs. certainty of execution, considering market liquidity, client_risk_profile, and user_execution_preferences.
 * Provide guidance on setting price levels for limit/stop orders relative to key technical levels identified by the provided_trading_strategy.
 * Initial Position Sizing & Risk Allocation:
-* Propose a method for determining initial position size that aligns with the user_risk_attitude (e.g., fixed fractional,
+* Propose a method for determining initial position size that aligns with the client_risk_profile (e.g., fixed fractional,
 fixed monetary risk per trade).
 * Explain how this initial allocation fits within a broader portfolio risk management context, if inferable.
 * Initial Stop-Loss Strategy:
 * Detail the methodology for placing initial stop-losses (e.g., volatility-based (ATR), chart-based (support/resistance), time-based).
-Justify this in relation to the provided_trading_strategy's logic and the user_risk_attitude.
+Justify this in relation to the provided_trading_strategy's logic and the client_risk_profile.
 
 III. Holding & In-Trade Management Strategy:
 * Active Monitoring vs. Passive Holding:
-* Based on user_investment_period and provided_trading_strategy, recommend a monitoring frequency and intensity.
+* Based on client_investment_goals, any stated horizon, and provided_trading_strategy, recommend a monitoring frequency and intensity.
 * What key performance indicators (KPIs) or market developments should be tracked while the trade is active?
 * Dynamic Risk Management (Stop-Loss Adjustments):
 * Outline strategies for adjusting stop-losses as the trade progresses (e.g., trailing stops, moving to breakeven,
-manual adjustments based on new technical levels). Explain the triggers and rationale, linking to user_risk_attitude.
+manual adjustments based on new technical levels). Explain the triggers and rationale, linking to client_risk_profile.
 * Handling Volatility & Drawdowns:
 * Discuss approaches to managing open positions during periods of heightened volatility or unexpected drawdowns
-(that haven't triggered a stop-loss), considering the user_risk_attitude.
+(that haven't triggered a stop-loss), considering the client_risk_profile.
 
-IV. Accumulation (Scaling-In) Strategy (If consistent with the provided_trading_strategy and user_risk_attitude):
+IV. Accumulation (Scaling-In) Strategy (If consistent with the provided_trading_strategy and client_risk_profile):
 * Conditions & Rationale for Accumulation:
 * Under what specific, favorable conditions (e.g., confirmation of trend strength, successful retests of key levels)
 would adding to an existing position be justified?
@@ -93,7 +93,7 @@ V. Partial Sell (Profit-Taking / Scaling-Out) Strategy:
 * Triggers & Rationale for Partial Sells:
 * Define objective criteria for taking partial profits (e.g., reaching predefined price targets, specific risk-reward multiples,
 time-based milestones, adverse leading indicator signals).
-* Explain how this aligns with the user_risk_attitude (e.g., securing profits for conservative users) and provided_trading_strategy.
+* Explain how this aligns with the client_risk_profile (e.g., securing profits for conservative clients) and provided_trading_strategy.
 * Execution Tactics for Partial Sells:
 * Order types, timing, and price levels.
 * Determining the portion of the position to sell (e.g., selling to cover initial risk, fixed percentage).
@@ -120,7 +120,7 @@ Depth of Reasoning: Every recommendation must be substantiated with clear, logic
 and market mechanics.
 Factual & Objective Analysis: Focus on quantifiable aspects and evidence-based practices where possible.
 Seamless Integration of Inputs: Continuously demonstrate how each element of the execution plan is a direct consequence of the interplay
-between the provided_trading_strategy, user_risk_attitude, user_investment_period, and user_execution_preferences.
+between the provided_trading_strategy, client_risk_profile, client_investment_goals, and user_execution_preferences.
 Actionability & Precision: The strategies should be described with enough detail to be practically implementable or to inform
 the user's own decision-making process.
 Balanced Perspective: Acknowledge potential trade-offs or alternative approaches where relevant, explaining why the recommended path

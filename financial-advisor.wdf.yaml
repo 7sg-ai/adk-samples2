@@ -72,11 +72,34 @@ secrets:
         provider: gcp-secret-manager
         vaultRef: gcp-main
         key: deploy-service-account-key
+    - name: sfdc-oauth-client-id
+      injectAs: env
+      envVar: SFDC_OAUTH_CLIENT_ID
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: sfdc-oauth-client-id
+    - name: sfdc-oauth-client-secret
+      injectAs: env
+      envVar: SFDC_OAUTH_CLIENT_SECRET
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: sfdc-oauth-client-secret
+    - name: financial-advisor-session-key
+      injectAs: env
+      envVar: APP_SESSION_SIGNING_KEY
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: financial-advisor-session-key
 
 dataSources:
   inputs:
     - name: google-search
       description: Built-in Google Search used by all sub-agents for real-time market data, news, and financial information
+    - name: salesforce-account-profile
+      description: Read-only Salesforce hosted MCP lookup of allowlisted Account risk profile and investment goals fields
   outputs: []
 
 scenarios:
@@ -99,9 +122,32 @@ scenarios:
             env:
               - name: GOOGLE_GENAI_USE_VERTEXAI
                 value: "true"
+              - name: APP_ENV
+                value: production
+              - name: PUBLIC_BASE_URL
+                value: https://financial-advisor.example.com
+              - name: COOKIE_SECURE
+                value: "true"
+              - name: GATEWAY_STORAGE_BACKEND
+                value: firestore
+              - name: FIRESTORE_DATABASE
+                value: (default)
+              - name: TOKEN_KMS_KEY_NAME
+                value: projects/PROJECT_ID/locations/us-central1/keyRings/financial-advisor/cryptoKeys/oauth-tokens
+              - name: SFDC_LOGIN_URL
+                value: https://login.salesforce.com
+              - name: SFDC_MCP_URL
+                value: https://api.salesforce.com/platform/mcp/v1/platform/sobject-reads
+              - name: SFDC_RISK_PROFILE_FIELD
+                value: RiskProfile_c
+              - name: SFDC_INVESTMENT_GOALS_FIELD
+                value: InvestmentGoals_c
             envFromSecretRefs:
               - google-cloud-project
               - google-cloud-location
+              - sfdc-oauth-client-id
+              - sfdc-oauth-client-secret
+              - financial-advisor-session-key
             resources:
               cpu: "2"
               memory: 2Gi
@@ -145,8 +191,27 @@ scenarios:
               env:
                 - name: GOOGLE_GENAI_USE_VERTEXAI
                   value: "false"
+                - name: APP_ENV
+                  value: development
+                - name: PUBLIC_BASE_URL
+                  value: http://localhost:8080
+                - name: COOKIE_SECURE
+                  value: "false"
+                - name: GATEWAY_STORAGE_BACKEND
+                  value: memory
+                - name: SFDC_LOGIN_URL
+                  value: https://login.salesforce.com
+                - name: SFDC_MCP_URL
+                  value: https://api.salesforce.com/platform/mcp/v1/platform/sobject-reads
+                - name: SFDC_RISK_PROFILE_FIELD
+                  value: RiskProfile_c
+                - name: SFDC_INVESTMENT_GOALS_FIELD
+                  value: InvestmentGoals_c
               envFromSecretRefs:
                 - google-api-key
+                - sfdc-oauth-client-id
+                - sfdc-oauth-client-secret
+                - financial-advisor-session-key
               resources:
                 cpu: "1"
                 memory: 1Gi

@@ -16,7 +16,7 @@
 
 RISK_ANALYST_PROMPT = """
 Objective: Generate a detailed and reasoned risk analysis for the provided trading strategy and execution strategy.
-This analysis must be meticulously tailored to the user's specified risk attitude, investment period, and execution preferences.
+This analysis must be meticulously tailored to the client's risk profile, investment goals, and execution preferences.
 The output must be rich in factual analysis, clearly explaining all identified risks and proposing specific, actionable mitigation strategies.
 
 * Given Inputs (These will be strictly provided; do not solicit further input from the user):
@@ -29,10 +29,10 @@ provided_execution_strategy: The specific execution strategy provided by the exe
 the provided_trading_strategy will be implemented in the market (e.g., "Execute QQQ trades using limit orders placed 0.5% below breakout level,
 with an initial stop-loss at the pattern's low and a take-profit target at 2x risk; orders managed via Broker X's API,"
 "Enter WTI futures positions with market orders upon Bollinger Band cross, with a 1.5 ATR stop-loss and a target at the mean").
-user_risk_attitude: The user's defined risk tolerance (e.g., Very Conservative, Conservative, Balanced, Aggressive, Very Aggressive).
+client_risk_profile: The Salesforce-loaded or user-defined risk tolerance (e.g., Very Conservative, Conservative, Balanced, Aggressive, Very Aggressive).
 This influences acceptable volatility, drawdown tolerance, stop-loss settings, order aggressiveness, and scaling decisions.
-user_investment_period: The user's defined investment horizon (e.g., Intraday, Short-term (days to weeks), Medium-term (weeks to months),
-Long-term (months to years)). This impacts timeframe relevance, review frequency, and sensitivity to market noise versus trends.
+client_investment_goals: The Salesforce-loaded or user-defined goals, including the investment horizon when specified.
+These impact desired outcomes, timeframe relevance, review frequency, and sensitivity to market noise versus trends.
 user_execution_preferences: User-defined preferences regarding execution (e.g., Preferred broker(s)
 [noting implications for order types/commissions like 'Broker Y, prefers their 'Smart Order Router' for US equities'], preference for limit orders over market orders ['Always use limit orders unless it's a fast market exit'], desire for low latency vs. cost optimization ['Cost optimization is prioritized over ultra-low latency'], specific order algorithms like TWAP/VWAP if available and relevant ['Utilize VWAP for entries larger than 5% of average daily volume if supported by broker']).
 
@@ -44,16 +44,16 @@ the provided inputs:
 * Executive Summary of Risks:
 
 Brief overview of the most critical risks identified for the combined trading and execution strategies, specifically contextualized
-by the user's profile (user_risk_attitude, user_investment_period).
-An overall qualitative risk assessment level (e.g., Low, Medium, High, Very High) for the proposed plan, given the user's profile.
+by the client's profile (client_risk_profile, client_investment_goals).
+An overall qualitative risk assessment level (e.g., Low, Medium, High, Very High) for the proposed plan, given the client's profile.
 Market Risks:
 
 * Identification: Detail specific market risks (e.g., directional risk, volatility risk, gap risk, interest rate sensitivity,
 inflation impact, currency risk if applicable, correlation breakdown) directly pertinent to the provided_trading_strategy and
 the assets involved.
 * Assessment: Analyze the potential impact (e.g., financial loss, performance drag) of these risks. Where possible, relate this to
-the user_risk_attitude (e.g., "An aggressive investor might tolerate higher volatility, but the strategy's exposure to sudden market
-reversals could still exceed a 20% drawdown, which might be a threshold even for them"). Consider the user_investment_period
+the client_risk_profile (e.g., "An aggressive investor might tolerate higher volatility, but the strategy's exposure to sudden market
+reversals could still exceed a 20% drawdown, which might be a threshold even for them"). Consider the horizon in client_investment_goals
 (e.g., "Short-term volatility is less critical for a long-term investor unless it triggers margin calls or forces premature liquidation").
 * Mitigation: Propose specific, actionable mitigation strategies (e.g., defined stop-loss levels and types [static, trailing],
 position sizing rules [e.g., fixed fractional, Kelly criterion variant], hedging techniques relevant to the strategy,
@@ -101,13 +101,13 @@ Identification: Pinpoint risks inherent to the logic and assumptions of the prov
 trend-following systems in ranging markets, unexpected early assignment for options strategies, concentration risk in few assets/sectors,
 risk of indicator divergence or failure).
 Assessment: Evaluate how these intrinsic risks could manifest, their potential impact on performance, and how sensitive they are to changing
-market regimes. Relate this to user_risk_attitude (e.g., "A strategy prone to deep drawdowns during black swan events may be unsuitable
+market regimes. Relate this to client_risk_profile (e.g., "A strategy prone to deep drawdowns during black swan events may be unsuitable
 for a conservative user").
 Mitigation: Suggest strategy-level adjustments (e.g., dynamic position sizing, regime filters, out-of-sample testing for models), robust monitoring conditions (e.g., tracking performance against a benchmark, drawdown limits per trade/period), diversification of strategy parameters or complementary strategies, and a plan for periodic review and re-validation of the strategy.
 
 * Psychological Risks for the Trader:
 
-Identification: Based on the user_risk_attitude, strategy intensity (e.g., high-frequency intraday vs. long-term passive), and potential
+Identification: Based on the client_risk_profile, strategy intensity (e.g., high-frequency intraday vs. long-term passive), and potential
 for drawdowns, identify common psychological pitfalls (e.g., fear of missing out (FOMO), revenge trading, confirmation bias,
 overconfidence after a winning streak, difficulty adhering to the plan during losing streaks, emotional decision-making).
 Assessment: Discuss how these behavioral biases could directly undermine the disciplined execution of the provided_trading_strategy and
@@ -119,7 +119,7 @@ pre-defining responses to various market scenarios, and employing techniques to 
 *Overall Alignment with User Profile & Concluding Remarks:
 
 Conclude with an explicit discussion summarizing how the overall risk profile of the combined strategies, taking into account all identified
-risks and proposed mitigations, aligns (or misaligns) with the user_risk_attitude, user_investment_period, and user_execution_preferences.
+risks and proposed mitigations, aligns (or misaligns) with the client_risk_profile, client_investment_goals, and user_execution_preferences.
 Highlight any significant residual risks or potential areas where the strategy might conflict with the user's profile,
 even with mitigations in place.
 Provide critical considerations or trade-offs the user must accept if they proceed with this plan.

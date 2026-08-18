@@ -94,27 +94,75 @@ to implement this workflow.
         gcloud auth application-default set-quota-project $GOOGLE_CLOUD_PROJECT
         ```
 
+### Optional Salesforce client-profile context
+
+The coordinator can load a selected client's profile from Salesforce without
+asking the user to enter identifying information. The integration reads only
+these fields from `Account`:
+
+* `RiskProfile_c`
+* `InvestmentGoals_c`
+
+The application has two isolated modes:
+
+* `/` is anonymous. It never starts OAuth, reads a token, calls Salesforce, or
+  accesses Account data. The user provides non-PII risk and goal information.
+* `/salesforce/accounts/<ACCOUNT_ID>` is authenticated. It uses Salesforce as
+  the application identity provider and loads the selected Account profile.
+
+For authenticated mode, create a Salesforce **External Client App** configured
+for OAuth Authorization Code with PKCE. Connected Apps and machine-to-machine
+flows aren't supported by Salesforce Hosted MCP. Configure the exact callback
+URL `<PUBLIC_BASE_URL>/auth/salesforce/callback` and scopes `mcp_api` and
+`refresh_token`.
+
+Set the gateway and External Client App configuration:
+
+```bash
+export PUBLIC_BASE_URL=https://financial-advisor.example.com
+export APP_SESSION_SIGNING_KEY=<at-least-32-random-bytes>
+export SFDC_LOGIN_URL=https://login.salesforce.com
+export SFDC_OAUTH_CLIENT_ID=<external-client-app-consumer-key>
+export SFDC_OAUTH_CLIENT_SECRET=<optional-confidential-web-client-secret>
+export SFDC_MCP_URL=https://api.salesforce.com/platform/mcp/v1/platform/sobject-reads
+export SFDC_RISK_PROFILE_FIELD=RiskProfile_c
+export SFDC_INVESTMENT_GOALS_FIELD=InvestmentGoals_c
+```
+
+Production stores each named advisor's refresh token in Firestore encrypted
+with Cloud KMS:
+
+```bash
+export GATEWAY_STORAGE_BACKEND=firestore
+export FIRESTORE_PROJECT=<project-id>
+export FIRESTORE_DATABASE='(default)'
+export TOKEN_KMS_KEY_NAME=projects/<PROJECT>/locations/<LOCATION>/keyRings/<RING>/cryptoKeys/<KEY>
+```
+
+The gateway completes PKCE, resolves the Salesforce org/user identity, refreshes
+tokens server-side, verifies Account access by reading through Salesforce MCP,
+and then creates ADK state containing only the two allowlisted profile fields.
+The Account ID and OAuth tokens never enter ADK state, prompts, model-visible
+tool arguments, or browser storage. Firestore never stores a plaintext refresh
+token.
+
+When the app is started at `/`, or the agent is invoked directly outside the
+gateway, the coordinator asks for a risk profile and investment goals without
+requesting PII. Supplying an Account ID in chat cannot enable Salesforce mode.
+
 ## Running the Agent
 
-**Using `adk`**
+**Using the dual-mode gateway**
 
-ADK provides convenient ways to bring up agents locally and interact with them.
-You may talk to the agent using the CLI:
-
-```bash
-adk run financial_advisor
-```
-
-Or on a web interface:
+Start the FastAPI gateway locally:
 
 ```bash
- adk web
+uv run uvicorn financial_advisor.web.app:app --host 0.0.0.0 --port 8080
 ```
 
-The command `adk web` will start a web server on your machine and print the URL.
-You may open the URL, select "financial_advisor" in the top-left drop-down menu, and
-a chatbot interface will appear on the right. The conversation is initially
-blank. Here are some example requests you may ask the Financial Advisor to verify:
+Open `http://localhost:8080/` for anonymous mode. Salesforce mode requires the
+External Client App callback and starts at
+`http://localhost:8080/salesforce/accounts/<ACCOUNT_ID>`.
 
 ```
 who are you
@@ -766,6 +814,10 @@ Response: Hello! I can guide you through a structured process to receive financi
 
 Would you like to begin by providing a market ticker symbol for analysis?
 ```
+
+Direct Agent Engine testing bypasses the OAuth gateway and therefore always
+runs in anonymous/manual-profile mode. Test authenticated Salesforce mode only
+through the FastAPI gateway.
 
 To delete the deployed agent, you may run the following command:
 

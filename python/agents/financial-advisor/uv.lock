@@ -572,11 +572,16 @@ name = "financial-advisor"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "fastapi" },
     { name = "google-adk" },
     { name = "google-cloud-aiplatform", extra = ["adk", "agent-engines"] },
+    { name = "google-cloud-firestore" },
+    { name = "google-cloud-kms" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -598,11 +603,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
     { name = "google-adk", specifier = ">=1.0.0" },
     { name = "google-cloud-aiplatform", extras = ["adk", "agent-engines"], specifier = ">=1.93.0" },
+    { name = "google-cloud-firestore", specifier = ">=2.20.0" },
+    { name = "google-cloud-kms", specifier = ">=3.5.0" },
     { name = "google-genai", specifier = ">=1.9.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1014,6 +1024,23 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-firestore"
+version = "2.28.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "google-cloud-core" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/8a/cf7722ce8dec68f7ad67d47fb7696301c7b7635f73d291f57e76c0a0a2b2/google_cloud_firestore-2.28.1.tar.gz", hash = "sha256:833fefd9a8b9c68c750da1c0fdd93e4ca1a3ab728081c7d6c57c362e06accf8b", size = 651748, upload-time = "2026-08-06T06:24:23.639Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/56/95/b774e13e1cf8a1b9f24e453ae7968cfc9566e266a6eb88cd583c92fa5e4b/google_cloud_firestore-2.28.1-py3-none-any.whl", hash = "sha256:972ac92717c8c0c1ead18c28a3d6f739253cdf0940039bc172d5cbbbb399c6fd", size = 431872, upload-time = "2026-08-06T06:23:15.367Z" },
+]
+
+[[package]]
 name = "google-cloud-iam"
 version = "2.22.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1028,6 +1055,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/62/e5/07d4f1daf85a2a0bd9f78ad865ea678d7b4e1227ed76f671c7167aae147f/google_cloud_iam-2.22.0.tar.gz", hash = "sha256:203ddfece17e014ee4fbc5c3244daa14a88b7ee57c8e3a7622d0f2a1a3b8d7f3", size = 502498, upload-time = "2026-03-30T22:51:28.878Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/aa/a8/d721ea11d0eb93803d14cb2e90d0442bb3b269a82f7cb5faff2b98022039/google_cloud_iam-2.22.0-py3-none-any.whl", hash = "sha256:c443b34b5a6a9e51d32cee397879bb781b900af68937c67a275def23bbc025f3", size = 463425, upload-time = "2026-03-30T20:02:42.967Z" },
+]
+
+[[package]]
+name = "google-cloud-kms"
+version = "3.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/73/53/4bde1d2c31e72e898c2bdfac25ac27da52c3b4e1936a411fbe96f01d65a4/google_cloud_kms-3.16.0.tar.gz", hash = "sha256:c89c66ccffc1358f973801ed1b45bd92b35ddbbc2545db9032af6d4643b20c76", size = 448119, upload-time = "2026-07-16T20:36:20.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/b0/f102b5c077df60cfeac7ace7a1ccbe6d5e934dfadf37ff8b8ddbcdce8a24/google_cloud_kms-3.16.0-py3-none-any.whl", hash = "sha256:ad3c102961ba58179f7261814d9cd28dded93603bd33c8224b4b072897bbe81e", size = 359027, upload-time = "2026-07-16T20:35:57.575Z" },
 ]
 
 [[package]]

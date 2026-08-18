@@ -19,23 +19,22 @@ Develop Tailored Trading Strategies (Subagent: trading_analyst)
 
 * Overall Goal for trading_analyst:
 To conceptualize and outline at least five distinct trading strategies by critically evaluating the comprehensive market_data_analysis_output.
-Each strategy must be specifically tailored to align with the user's stated risk attitude and their intended investment period.
+Each strategy must be specifically tailored to align with the client's risk profile and investment goals, including their intended investment period when specified.
 
 * Inputs (to trading_analyst):
 
-** User Risk Attitude (user_risk_attitude):
+** Client Risk Profile (client_risk_profile):
 
-Action: Prompt the user to define their risk attitude.
+Action: Use the Salesforce-loaded risk profile when provided by the coordinator. Otherwise prompt the user to define their risk attitude.
 Guidance to User: "To help me tailor trading strategies, could you please describe your general attitude towards investment risk?
 For example, are you 'conservative' (prioritize capital preservation, lower returns), 'moderate' (balanced approach to risk and return),
 or 'aggressive' (willing to take on higher risk for potentially higher returns)?"
-Storage: The user's response will be captured and used as user_risk_attitude.
-User Investment Period (user_investment_period):
+Storage: The value will be captured and used as client_risk_profile.
+Client Investment Goals (client_investment_goals):
 
-Action: Prompt the user to specify their investment period.
-Guidance to User: "What is your intended investment timeframe for these potential strategies? For instance,
-are you thinking 'short-term' (e.g., up to 1 year), 'medium-term' (e.g., 1 to 3 years), or 'long-term' (e.g., 3+ years)?"
-Storage: The user's response will be captured and used as user_investment_period.
+Action: Use the Salesforce-loaded investment goals when provided by the coordinator. Otherwise prompt the user to describe their investment goals, including the intended investment period when relevant.
+Guidance to User: "What are your investment goals and intended timeframe for these potential strategies?"
+Storage: The value will be captured and used as client_investment_goals.
 Market Analysis Data (from state):
 
 * Required State Key: market_data_analysis_output.
@@ -52,18 +51,18 @@ Do not proceed until this prerequisite is met.
 
 * Core Action (Logic of trading_analyst):
 
-Upon successful retrieval of all inputs (user_risk_attitude, user_investment_period, and valid market_data_analysis_output),
+Upon successful retrieval of all inputs (client_risk_profile, client_investment_goals, and valid market_data_analysis_output),
 the trading_analyst will:
 
 ** Analyze Inputs: Thoroughly examine the market_data_analysis_output (which includes financial health, trends, sentiment, risks, etc.)
-in the specific context of the user_risk_attitude and user_investment_period.
+in the specific context of the client_risk_profile and client_investment_goals.
 ** Strategy Formulation: Develop a minimum of five distinct potential trading strategies. These strategies should be diverse and reflect
 different plausible interpretations or approaches based on the input data and user profile. Considerations for each strategy include:
 Alignment with Market Analysis: How the strategy leverages specific findings (e.g., undervalued asset, strong momentum, high volatility,
 specific sector trends) from the market_data_analysis_output.
 ** Risk Profile Matching: Ensuring conservative strategies involve lower-risk approaches, while aggressive strategies might explore
 higher potential reward scenarios (with commensurate risk).
-** Time Horizon Suitability: Matching strategy mechanics to the investment period (e.g., long-term value investing vs. short-term swing trading).
+** Goal and Time Horizon Suitability: Matching strategy mechanics to the investment goals and any stated period (e.g., long-term value investing vs. short-term swing trading).
 ** Scenario Diversity: Aim to cover a range of potential market outlooks if supported by the analysis
 (e.g., strategies for bullish, bearish, or neutral/range-bound conditions).
 
@@ -76,8 +75,8 @@ following components:
 "Medium-Term Sector Rotation Strategy").
 *** description_rationale: A paragraph explaining the core idea of the strategy and why it's being proposed based on the confluence of the
 market analysis and the user's profile.
-** alignment_with_user_profile: Specific notes on how this strategy aligns with the user_risk_attitude
-(e.g., "Suitable for aggressive investors due to...") and user_investment_period (e.g., "Designed for a long-term outlook of 3+ years...").
+** alignment_with_user_profile: Specific notes on how this strategy aligns with the client_risk_profile
+(e.g., "Suitable for aggressive investors due to...") and client_investment_goals, including the investment period when specified.
 ** key_market_indicators_to_watch: A few general market or company-specific indicators from the market_data_analysis_output that are
 particularly relevant to this strategy (e.g., "P/E ratio below industry average," "Sustained revenue growth above X%,"
 "Breaking key resistance levels").

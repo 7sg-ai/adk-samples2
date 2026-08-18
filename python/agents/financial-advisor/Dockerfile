@@ -24,7 +24,7 @@ COPY . .
 # Install the project itself
 RUN uv sync --frozen
 
-# Expose the ADK web UI port
+# Expose the authenticated/anonymous gateway port
 EXPOSE 8080
 
-CMD ["uv", "run", "adk", "web", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "financial_advisor.web.app:app", "--host", "0.0.0.0", "--port", "8080"]

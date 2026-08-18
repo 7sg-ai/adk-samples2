@@ -77,7 +77,9 @@ def main(argv: list[str]) -> None:  # pylint: disable=unused-argument
 
     agent = agent_engines.get(FLAGS.resource_id)
     print(f"Found agent with resource ID: {FLAGS.resource_id}")
-    session = agent.create_session(user_id=FLAGS.user_id)
+    session = agent.create_session(
+        user_id=FLAGS.user_id, state={"access_mode": "anonymous"}
+    )
     print(f"Created session for user ID: {FLAGS.user_id}")
     print("Type 'quit' to exit.")
     while True:

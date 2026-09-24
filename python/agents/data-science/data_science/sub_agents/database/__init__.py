@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def get_analytics_agent():
-    from .analytics.agent import analytics_agent
+"""Database sub-agent package.
 
-    return analytics_agent
-
-
-def get_database_agent():
-    from .database.agent import database_agent
-
-    return database_agent
+The agent is imported from agent.py by callers that already have ADK
+credentials. This module stays empty so loader tests do not construct it.
+"""

@@ -14,8 +14,8 @@
 
 """Top level agent for data agent multi-agents.
 
--- it get data from database (e.g., BQ) using NL2SQL
--- then, it use NL2Py to do further data analysis as needed
+-- it gets data from BigQuery or a loaded Spanner Graph
+-- then, it uses NL2Py to do further data analysis as needed
 """
 
 import base64
@@ -37,14 +37,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from .prompts import return_instructions_root
-from .sub_agents import bqml_agent
-from .sub_agents.alloydb.tools import (
-    get_database_settings as get_alloydb_database_settings,
-)
-from .sub_agents.bigquery.tools import (
-    get_database_settings as get_bq_database_settings,
-)
-from .tools import call_alloydb_agent, call_analytics_agent, call_bigquery_agent
+from .tools import call_analytics_agent, call_database_agent
 
 # Configure Weave endpoint and authentication.
 _WANDB_BASE_URL = "https://trace.wandb.ai"
@@ -82,7 +75,7 @@ _logger = logging.getLogger(__name__)
 # Initialize module-level config variables
 _dataset_config = {}
 _database_settings = {}
-_supported_dataset_types = ["bigquery", "alloydb"]
+_supported_dataset_types = ["bigquery", "spanner"]
 _required_dataset_config_params = ["name", "description"]
 
 
@@ -117,12 +110,24 @@ def load_dataset_config():
 
 
 def get_database_settings(db_type: str) -> dict:
-    """Wrapper function to get database settings by type"""
+    """Settings stub. Schema is loaded by the database agent's tools."""
     assert db_type in _supported_dataset_types
     if db_type == "bigquery":
-        return get_bq_database_settings()
-    else:
-        return get_alloydb_database_settings()
+        return {
+            "schema": (
+                "BigQuery tables are listed at runtime with list_sources and "
+                "get_schema. Configured dataset: "
+                f"{os.getenv('BQ_DATASET_ID', '')}."
+            )
+        }
+    return {
+        "schema": (
+            "Uploaded .xlsx workbooks are stored as Spanner Graph schemas. "
+            "Call list_sources to see graphs already loaded. "
+            f"Instance: {os.getenv('SPANNER_INSTANCE_ID', '')}, "
+            f"database: {os.getenv('SPANNER_DATABASE_ID', '')}."
+        )
+    }
 
 
 def init_database_settings(dataset_config: dict) -> dict:
@@ -175,15 +180,7 @@ def load_database_settings_in_context(callback_context: CallbackContext):
 
 
 def get_root_agent() -> LlmAgent:
-    tools = [call_analytics_agent]
-    sub_agents = []
-    for dataset in _dataset_config["datasets"]:
-        if dataset["type"] == "bigquery":
-            tools.append(call_bigquery_agent)
-            sub_agents.append(bqml_agent)
-        elif dataset["type"] == "alloydb":
-            tools.append(call_alloydb_agent)
-
+    tools = [call_analytics_agent, call_database_agent]
     agent = LlmAgent(
         model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
         name="data_science_root_agent",
@@ -195,7 +192,7 @@ def get_root_agent() -> LlmAgent:
             Todays date: {date.today()}
             """
         ),
-        sub_agents=sub_agents,  # type: ignore
+        sub_agents=[],
         tools=tools,  # type: ignore
         before_agent_callback=load_database_settings_in_context,
         generate_content_config=types.GenerateContentConfig(temperature=0.01),

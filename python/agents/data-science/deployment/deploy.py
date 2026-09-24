@@ -191,16 +191,14 @@ def main(argv: list[str]) -> None:  # pylint: disable=unused-argument
     env_var_keys = [
         "ROOT_AGENT_MODEL",
         "ANALYTICS_AGENT_MODEL",
-        "BASELINE_NL2SQL_MODEL",
-        "BIGQUERY_AGENT_MODEL",
-        "BQML_AGENT_MODEL",
-        "CHASE_NL2SQL_MODEL",
+        "DATABASE_AGENT_MODEL",
         "BQ_DATASET_ID",
         "BQ_DATA_PROJECT_ID",
         "BQ_COMPUTE_PROJECT_ID",
-        "BQML_RAG_CORPUS_NAME",
         "CODE_INTERPRETER_EXTENSION_NAME",
-        "NL2SQL_METHOD",
+        "SPANNER_PROJECT_ID",
+        "SPANNER_INSTANCE_ID",
+        "SPANNER_DATABASE_ID",
     ]
 
     skipped_vars: list[str] = []

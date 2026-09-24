@@ -19,41 +19,28 @@ import logging
 from google.adk.tools import ToolContext
 from google.adk.tools.agent_tool import AgentTool
 
-from .sub_agents import alloydb_agent, analytics_agent, bigquery_agent
+from .sub_agents import get_analytics_agent, get_database_agent
 
 logger = logging.getLogger(__name__)
 
 
-async def call_bigquery_agent(
+async def call_database_agent(
     question: str,
     tool_context: ToolContext,
 ):
-    """Tool to call bigquery database (nl2sql) agent."""
-    logger.debug("call_bigquery_agent: %s", question)
+    """Call the shared BigQuery and Spanner Graph database agent.
 
-    agent_tool = AgentTool(agent=bigquery_agent)
-
-    bigquery_agent_output = await agent_tool.run_async(
+    Use this for listing sources, reading schema, running a read-only query,
+    or loading an uploaded .xlsx workbook into a Spanner Graph schema.
+    Natural-language-to-SQL and BQML are not available on this agent.
+    """
+    logger.debug("call_database_agent: %s", question)
+    agent_tool = AgentTool(agent=get_database_agent())
+    output = await agent_tool.run_async(
         args={"request": question}, tool_context=tool_context
     )
-    tool_context.state["bigquery_agent_output"] = bigquery_agent_output
-    return bigquery_agent_output
-
-
-async def call_alloydb_agent(
-    question: str,
-    tool_context: ToolContext,
-):
-    """Tool to call alloydb database (nl2sql) agent."""
-    logger.debug("call_alloydb_agent: %s", question)
-
-    agent_tool = AgentTool(agent=alloydb_agent)
-
-    alloydb_agent_output = await agent_tool.run_async(
-        args={"request": question}, tool_context=tool_context
-    )
-    tool_context.state["alloydb_agent_output"] = alloydb_agent_output
-    return alloydb_agent_output
+    tool_context.state["database_agent_output"] = output
+    return output
 
 
 async def call_analytics_agent(
@@ -93,31 +80,22 @@ async def call_analytics_agent(
     # if question == "N/A":
     #    return tool_context.state["db_agent_output"]
 
-    bigquery_data = ""
-    alloydb_data = ""
-
-    if "bigquery_query_result" in tool_context.state:
-        bigquery_data = tool_context.state["bigquery_query_result"]
-    if "alloydb_query_result" in tool_context.state:
-        alloydb_data = tool_context.state["alloydb_query_result"]
+    query_data = tool_context.state.get("query_result", "")
+    source = tool_context.state.get("query_result_source", "")
 
     question_with_data = f"""
   Question to answer: {question}
 
-  Actual data to analyze this question is available in the following data
-  tables:
+  Actual data to analyze this question is in query_result.
+  Source: {source}
 
-  <BIGQUERY>
-  {bigquery_data}
-  </BIGQUERY>
-
-  <ALLOYDB>
-  {alloydb_data}
-  </ALLOYDB>
+  <QUERY_RESULT>
+  {query_data}
+  </QUERY_RESULT>
 
   """
 
-    agent_tool = AgentTool(agent=analytics_agent)
+    agent_tool = AgentTool(agent=get_analytics_agent())
 
     analytics_agent_output = await agent_tool.run_async(
         args={"request": question_with_data}, tool_context=tool_context

@@ -58,13 +58,15 @@ The key features of the Data Science Multi-Agent include:
 
 *   **Multi-Agent Architecture:** Utilizes a top-level agent that orchestrates
     sub-agents, each specialized in a specific task.
-*   **Database Interaction (NL2SQL):** Employs a Database Agent to interact with
-    BigQuery and AlloyDB using natural language queries, translating them into SQL.
+*   **Database Interaction:** One database agent lists sources, reads schema,
+    and runs read-only SQL against BigQuery and Spanner Graph. Uploaded
+    `.xlsx` workbooks are persisted as Spanner Graph schemas. Natural language
+    to SQL and BQML are not used.
 *   **Data Science Analysis (NL2Py):** Includes a Data Science Agent that
     performs data analysis and visualization using Python, based on natural
     language instructions.
-*   **Machine Learning (BQML):** Features a BQML Agent that leverages BigQuery
-    ML for training and evaluating machine learning models.
+*   **Python analysis:** The analytics agent charts and transforms rows stored
+    in `query_result` after a database query.
 *   **Code Interpreter Integration:** Supports the use of a Code Interpreter
     extension in Vertex AI for executing Python code, enabling complex data
     analysis and manipulation.
@@ -177,15 +179,16 @@ set up the data sources to be used with the agent.
     environment variables for future runs to avoid creating multiple extensions.
 
 
-1. **NL2SQL Configuration:**
+1. **Spanner Graph configuration:**
 
-    For BigQuery NL2SQL generation, the gent can use one of two methods: either
-    querying Gemini directly, or [CHASE-SQL](https://arxiv.org/abs/2410.01943).
-    Set the variable `NL2SQL_METHOD` to either `BASELINE` (to use Gemini) or
-    `CHASE` to use CHASE-SQL.
+    Uploaded `.xlsx` files are stored as Spanner Graph schemas, not in
+    BigQuery. Set `SPANNER_PROJECT_ID`, `SPANNER_INSTANCE_ID`, and
+    `SPANNER_DATABASE_ID`. The instance and database must already exist; the
+    agent does not provision them. Node and edge sheets are taken only from
+    the mapping you declare when loading a workbook.
 
-    For AlloyDB NL2SQL generation the agent will always use  Gemini, so the
-    value of `NL2SQL_METHOD` will not affect the AlloyDB sub-agent.
+    BigQuery remains read-only. `BQ_DATA_PROJECT_ID` and `BQ_DATASET_ID` point
+    at existing tables. There is no NL2SQL method and no BQML agent.
 
 ## Database Setup
 

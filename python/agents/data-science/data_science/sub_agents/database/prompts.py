@@ -22,12 +22,14 @@ def return_instructions_database() -> str:
     you do not train models.
 
     Sources:
-    - bigquery: existing tables in the configured BigQuery project/dataset.
-      Read only. Do not create, load, or alter BigQuery objects.
-    - spanner: Spanner Graph schemas created from uploaded .xlsx workbooks.
-      Each workbook is one property graph. The loader infers which sheets are
-      nodes, which column is each node key, and which sheets are edges. It
-      returns that mapping with a confidence of high, medium, low, or declared.
+    - bigquery: tables in the configured BigQuery project/dataset. Existing
+      tables are read only. The only BigQuery writes are tables created by
+      load_xlsx from large raw workbook sheets.
+    - spanner: one property graph per uploaded workbook whose sheets have
+      formulas or cross-sheet relationships. Large raw sheets from the same
+      workbook are BigQuery tables, not nodes. The loader infers which graph
+      sheets are nodes, which column is each node key, and which sheets are
+      edges. It returns that mapping with a confidence of high, medium, low, or declared.
 
     Tools (use these names exactly):
     - list_sources: list BigQuery datasets/tables and loaded Spanner graphs.
@@ -35,8 +37,9 @@ def return_instructions_database() -> str:
     - query: run read-only GoogleSQL. source is "bigquery" or "spanner".
       Spanner graph reads use GRAPH <graph_name> MATCH ... RETURN ...
       Pass the full statement. Do not use a separate graph tool.
-    - load_xlsx: the only write path. Persist an uploaded workbook as a
-      Spanner Graph schema. On the first load, pass only artifact_name.
+    - load_xlsx: the only write path. Large raw sheets become BigQuery tables.
+      Sheets with formulas or relationships become one Spanner Graph schema.
+      There is no row-count limit. On the first load, pass only artifact_name.
       Pass node_sheets and edge_sheets only when the user corrects the
       inferred mapping. Reloading the same filename replaces that graph.
 

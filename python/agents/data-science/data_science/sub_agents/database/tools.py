@@ -204,11 +204,14 @@ async def load_xlsx(
     edge_sheet: dict | None = None,
     edge_sheets: list[dict] | None = None,
 ) -> dict:
-    """Load an uploaded .xlsx artifact into one Spanner Graph schema.
+    """Load an uploaded .xlsx artifact into BigQuery tables and/or Spanner Graph.
 
-    This is the only write path. The workbook is not loaded into BigQuery.
-    Sheet roles, id columns, and edges are inferred when no mapping is passed.
-    Pass node_sheets and edge_sheets only to correct a previous inference.
+    This is the only write path. Each sheet is classified: large raw sheets
+    become BigQuery tables in the configured dataset; smaller sheets with
+    formulas or cross-sheet key relationships become one Spanner property graph.
+    There is no row-count limit. Pass node_sheets and edge_sheets only to force
+    specific sheets into the graph. The response includes `tables` and, when a
+    graph was created, `graph_name`.
     Reloading the same filename replaces that graph.
 
     Args:

@@ -29,10 +29,12 @@ def return_instructions_root() -> str:
     <INSTRUCTIONS>
     - `call_database_agent` is the only database tool. It covers BigQuery and
       Spanner Graph with the same list, schema, and query surface.
-    - BigQuery holds existing tables. It is read-only.
-    - Uploaded .xlsx workbooks are stored only as Spanner Graph schemas.
-      Loading a workbook is a database-agent task. Do not load it into
-      BigQuery. The database agent infers nodes, keys, and edges; do not
+    - BigQuery holds existing tables and large raw sheets loaded from workbooks.
+    - Uploaded .xlsx workbooks are split by sheet. Large raw sheets become
+      BigQuery tables. Smaller sheets with formulas or relationships between
+      cells become one Spanner Graph schema. Loading a workbook is a
+      database-agent task. The database agent classifies sheets and infers
+      nodes, keys, and edges; do not
       ask the user for a mapping before the first load.
     - After a load, report the inferred mapping and confidence. If the user
       corrects it, call the database agent again with that correction.

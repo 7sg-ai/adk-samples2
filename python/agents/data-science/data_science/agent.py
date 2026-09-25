@@ -117,12 +117,15 @@ def get_database_settings(db_type: str) -> dict:
             "schema": (
                 "BigQuery tables are listed at runtime with list_sources and "
                 "get_schema. Configured dataset: "
-                f"{os.getenv('BQ_DATASET_ID', '')}."
+                f"{os.getenv('BQ_DATASET_ID', '')}. Large raw sheets from an "
+                "uploaded workbook are also loaded here."
             )
         }
     return {
         "schema": (
-            "Uploaded .xlsx workbooks are stored as Spanner Graph schemas. "
+            "Uploaded .xlsx sheets with formulas or relationships are stored "
+            "as one Spanner Graph schema. Large raw sheets from the same "
+            "workbook are BigQuery tables. "
             "Call list_sources to see graphs already loaded. "
             f"Instance: {os.getenv('SPANNER_INSTANCE_ID', '')}, "
             f"database: {os.getenv('SPANNER_DATABASE_ID', '')}."

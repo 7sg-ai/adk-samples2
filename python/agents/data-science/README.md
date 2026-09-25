@@ -60,7 +60,9 @@ The key features of the Data Science Multi-Agent include:
     sub-agents, each specialized in a specific task.
 *   **Database Interaction:** One database agent lists sources, reads schema,
     and runs read-only SQL against BigQuery and Spanner Graph. Uploaded
-    `.xlsx` workbooks are persisted as Spanner Graph schemas. Natural language
+    `.xlsx` sheets are classified: large raw sheets become BigQuery tables,
+    and sheets with formulas or relationships become one Spanner Graph schema.
+    Natural language
     to SQL and BQML are not used.
 *   **Data Science Analysis (NL2Py):** Includes a Data Science Agent that
     performs data analysis and visualization using Python, based on natural
@@ -181,16 +183,19 @@ set up the data sources to be used with the agent.
 
 1. **Spanner Graph configuration:**
 
-    Uploaded `.xlsx` files are stored as Spanner Graph schemas, not in
-    BigQuery. Set `SPANNER_PROJECT_ID`, `SPANNER_INSTANCE_ID`, and
-    `SPANNER_DATABASE_ID`. The instance and database must already exist; the
-    agent does not provision them. On upload, the loader infers node sheets,
-    id columns, and edge sheets, then returns that mapping with a confidence
-    score. A later load of the same file can pass an explicit mapping to
-    correct the inference.
+    Uploaded `.xlsx` files are split by sheet. Large raw sheets are loaded into
+    the configured BigQuery dataset. Sheets with formulas, or smaller sheets
+    whose columns overlap another sheet's key, are stored as one Spanner Graph
+    schema. There is no row-count limit. Set `SPANNER_PROJECT_ID`,
+    `SPANNER_INSTANCE_ID`, and `SPANNER_DATABASE_ID` for the graph path. The
+    instance and database must already exist; the agent does not provision
+    them. On upload, the loader classifies each sheet, infers node sheets, id
+    columns, and edge sheets, then returns that mapping with a confidence
+    score. A later load of the same file can pass an explicit mapping to force
+    sheets into the graph.
 
-    BigQuery remains read-only. `BQ_DATA_PROJECT_ID` and `BQ_DATASET_ID` point
-    at existing tables. There is no NL2SQL method and no BQML agent.
+    `BQ_DATA_PROJECT_ID` and `BQ_DATASET_ID` point at existing tables and receive
+    raw workbook sheets. There is no NL2SQL method and no BQML agent.
 
 ## Database Setup
 

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Load an .xlsx workbook into one Spanner Graph schema.
+"""Load an .xlsx workbook into BigQuery tables and/or one Spanner Graph schema.
 
-The model never emits DDL. This module profiles sheets, infers node keys and
-edge relationships, then builds CREATE TABLE / CREATE PROPERTY GRAPH statements
-and runs them through the Spanner Python client. A caller-supplied mapping
-overrides inference.
+The model never emits DDL. Sheets are classified first: large raw sheets become
+BigQuery tables; smaller sheets with formulas or cross-sheet key relationships
+become one Spanner property graph. A caller-supplied node/edge mapping forces
+those sheets into the graph. There is no row-count limit.
 """
 
 from __future__ import annotations
@@ -31,16 +31,23 @@ from datetime import date, datetime
 from typing import Any
 
 import pandas as pd
-from google.cloud import spanner
+from google.cloud import bigquery, spanner
 from google.cloud.spanner_v1 import param_types
+from openpyxl import load_workbook as open_workbook
 
 from data_science.sub_agents.database import settings
 
 CATALOG = "workbook_catalog"
 MAX_STRING = 1024
-MAX_ROWS = 20000
+# Routing hint only. Sheets at or above this size are tables unless they
+# contain formulas or foreign-key overlap. Never a hard reject.
+GRAPH_ROW_HINT = 20000
+BATCH_ROWS = 500
 EDGE_OVERLAP = 0.80
 HIGH_OVERLAP = 0.95
+_FORMULA_REF = re.compile(
+    r"(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_]*))!",
+)
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _ID_NAME = re.compile(r"^(id|.*_id|key|code|uuid)$", re.IGNORECASE)
 _READ_ONLY = re.compile(r"^\s*(SELECT|WITH|GRAPH)\b", re.IGNORECASE | re.DOTALL)
@@ -178,10 +185,6 @@ def _profile_column(series: pd.Series) -> dict[str, Any]:
 
 def _profile_sheet(sheet: str, frame: pd.DataFrame) -> dict[str, Any]:
     cleaned = _clean_frame(frame)
-    if len(cleaned) > MAX_ROWS:
-        raise ValueError(
-            f"Sheet {sheet!r} has {len(cleaned)} rows; limit is {MAX_ROWS}."
-        )
     return {
         "sheet": sheet,
         "frame": cleaned,
@@ -194,6 +197,145 @@ def read_sheets(workbook_bytes: bytes) -> dict[str, pd.DataFrame]:
     return pd.read_excel(
         io.BytesIO(workbook_bytes), sheet_name=None, engine="openpyxl"
     )
+
+
+def _formula_text(value: Any) -> str | None:
+    if isinstance(value, str) and value.startswith("="):
+        return value
+    text = getattr(value, "text", None)
+    if isinstance(text, str) and text.startswith("="):
+        return text
+    return None
+
+
+def formula_report(workbook_bytes: bytes) -> dict[str, dict[str, Any]]:
+    """Count formulas and cross-sheet references without evaluating them."""
+    book = open_workbook(io.BytesIO(workbook_bytes), data_only=False, read_only=True)
+    report: dict[str, dict[str, Any]] = {}
+    try:
+        defined = []
+        for named in book.defined_names.values():
+            defined.append(getattr(named, "attr_text", "") or "")
+        for sheet in book.worksheets:
+            formulas = 0
+            cross_sheet = 0
+            samples: list[str] = []
+            references: set[str] = set()
+            title = sheet.title
+            for row in sheet.iter_rows():
+                for cell in row:
+                    formula = _formula_text(cell.value)
+                    if not formula:
+                        continue
+                    formulas += 1
+                    if len(samples) < 3:
+                        samples.append(formula[:120])
+                    if _FORMULA_REF.search(formula):
+                        cross_sheet += 1
+                        for match in _FORMULA_REF.finditer(formula):
+                            references.add((match.group(1) or match.group(2)).replace("''", "'"))
+            for text in defined:
+                quoted = f"'{title}'!"
+                plain = f"{title}!"
+                if quoted in text or plain in text:
+                    cross_sheet += 1
+            report[title] = {
+                "formula_count": formulas,
+                "cross_sheet_refs": cross_sheet,
+                "formula_samples": samples,
+                "references": sorted(references),
+            }
+    finally:
+        book.close()
+    return report
+
+
+def _sheet_role(
+    profile: dict,
+    formulas: dict[str, Any],
+    nodes: list[dict],
+) -> tuple[str, str]:
+    """Return (table|graph, reason) for one sheet."""
+    formula_count = int(formulas.get("formula_count") or 0)
+    cross_sheet = int(formulas.get("cross_sheet_refs") or 0)
+    if formula_count:
+        if cross_sheet:
+            return (
+                "graph",
+                f"{formula_count} formulas, {cross_sheet} cross-sheet references.",
+            )
+        return "graph", f"{formula_count} formulas relate cells in this sheet."
+    pair = _best_edge_pair(profile, nodes)
+    if pair:
+        return "graph", pair["reason"]
+    if profile["row_count"] >= GRAPH_ROW_HINT:
+        return (
+            "table",
+            f"{profile['row_count']} raw rows and no formulas or key overlap.",
+        )
+    if profile["row_count"] == 0:
+        return "table", "Empty sheet; stored as a table."
+    return (
+        "table",
+        "No formulas and no foreign-key overlap with another sheet.",
+    )
+
+
+def classify_sheets(workbook_bytes: bytes) -> dict[str, Any]:
+    """Choose BigQuery or Spanner Graph for each sheet. Does not load data."""
+    sheets = read_sheets(workbook_bytes)
+    if not sheets:
+        raise ValueError("Workbook has no sheets.")
+    profiles = [_profile_sheet(sheet, frame) for sheet, frame in sheets.items()]
+    formulas = formula_report(workbook_bytes)
+    nodes = []
+    for profile in profiles:
+        id_column, confidence = _pick_id(profile)
+        nodes.append(
+            {
+                "sheet": profile["sheet"],
+                "id_column": id_column,
+                "id_confidence": confidence,
+                "frame": profile["frame"],
+                "id_values": (
+                    _id_values(profile["frame"], id_column) if id_column else set()
+                ),
+            }
+        )
+    decisions = []
+    referenced = {
+        name
+        for info in formulas.values()
+        for name in info.get("references") or []
+    }
+    endpoints = set()
+    for profile in profiles:
+        pair = _best_edge_pair(profile, nodes)
+        if pair:
+            endpoints.add(pair["source_node"])
+            endpoints.add(pair["target_node"])
+    for profile in profiles:
+        destination, reason = _sheet_role(
+            profile, formulas.get(profile["sheet"], {}), nodes
+        )
+        if destination == "table" and profile["sheet"] in referenced:
+            destination = "graph"
+            reason = "Referenced by a formula on another sheet."
+        elif destination == "table" and profile["sheet"] in endpoints:
+            destination = "graph"
+            reason = "Key column is the endpoint of another sheet."
+        decisions.append(
+            {
+                "sheet": profile["sheet"],
+                "destination": destination,
+                "reason": reason,
+                "row_count": profile["row_count"],
+                "formula_count": int(
+                    formulas.get(profile["sheet"], {}).get("formula_count") or 0
+                ),
+            }
+        )
+    return {"sheets": decisions, "profiles": profiles, "formulas": formulas}
 
 
 def _conventional_id(column: str) -> bool:
@@ -432,8 +574,6 @@ def _node_plan(sheets: dict[str, pd.DataFrame], spec: dict, name: str) -> dict:
         frame.insert(0, id_column, [uuid.uuid4().hex for _ in range(len(frame))])
     elif id_column not in frame.columns:
         raise ValueError(f"Node sheet {sheet!r} has no id column {id_column!r}.")
-    if len(frame) > MAX_ROWS:
-        raise ValueError(f"Sheet {sheet!r} has {len(frame)} rows; limit is {MAX_ROWS}.")
     if not _is_unique(frame[id_column]):
         raise ValueError(f"Node sheet {sheet!r} id column {id_column!r} is not unique.")
     return {
@@ -466,8 +606,6 @@ def _edge_plan(sheets, edge_sheet, node_plans, name: str) -> dict:
     for column in (edge_sheet["source_column"], edge_sheet["target_column"]):
         if column not in frame.columns:
             raise ValueError(f"Edge sheet {sheet!r} has no column {column!r}.")
-    if len(frame) > MAX_ROWS:
-        raise ValueError(f"Sheet {sheet!r} has {len(frame)} rows; limit is {MAX_ROWS}.")
     return {
         "sheet": sheet,
         "table": ident(f"{name}_{sheet}", "edge table"),
@@ -551,12 +689,20 @@ def insert_rows(db, node_plans: list[dict], edge_plans: list[dict]) -> None:
     def _write(transaction):
         for plan in node_plans:
             columns, values = _rows(plan)
-            if values:
-                transaction.insert_or_update(plan["table"], columns=columns, values=values)
+            for start in range(0, len(values), BATCH_ROWS):
+                transaction.insert_or_update(
+                    plan["table"],
+                    columns=columns,
+                    values=values[start : start + BATCH_ROWS],
+                )
         for plan in edge_plans:
             columns, values = _rows(plan, edge=True)
-            if values:
-                transaction.insert(plan["table"], columns=columns, values=values)
+            for start in range(0, len(values), BATCH_ROWS):
+                transaction.insert(
+                    plan["table"],
+                    columns=columns,
+                    values=values[start : start + BATCH_ROWS],
+                )
 
     db.run_in_transaction(_write)
 
@@ -636,6 +782,59 @@ def _catalog_mapping(
     }
 
 
+def table_id_for(workbook_name: str, sheet: str) -> str:
+    stem = ident(workbook_name.rsplit(".", 1)[0], "workbook")
+    return ident(f"{stem[:40]}_{sheet}", "table")[:1024]
+
+
+def bq_table_name(workbook_name: str, sheet: str) -> str:
+    dataset = settings.bq_dataset_id()
+    project = settings.bq_project_id()
+    if not dataset or not project:
+        raise ValueError(
+            "BQ_DATASET_ID and BQ_DATA_PROJECT_ID (or GOOGLE_CLOUD_PROJECT) "
+            "must be set to load a tabular sheet."
+        )
+    settings.require_ident(dataset, "BQ_DATASET_ID")
+    return f"{project}.{dataset}.{table_id_for(workbook_name, sheet)}"
+
+
+def bigquery_client():
+    project = settings.bq_project_id()
+    compute = settings.env("BQ_COMPUTE_PROJECT_ID") or project
+    if not compute:
+        raise ValueError(
+            "BQ_DATA_PROJECT_ID or GOOGLE_CLOUD_PROJECT must be set to load a table."
+        )
+    return bigquery.Client(project=compute)
+
+
+def load_table(workbook_name: str, sheet: str, frame: pd.DataFrame) -> dict[str, Any]:
+    """Replace one BigQuery table with a sheet of raw rows. No row cap."""
+    table = bq_table_name(workbook_name, sheet)
+    client = bigquery_client()
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        autodetect=True,
+    )
+    job = client.load_table_from_dataframe(frame, table, job_config=job_config)
+    job.result(timeout=600)
+    return {
+        "sheet": sheet,
+        "table": table,
+        "table_id": table.rsplit(".", 1)[-1],
+        "row_count": int(len(frame)),
+    }
+
+
+def drop_bq_tables(tables: list[str]) -> None:
+    if not tables:
+        return
+    client = bigquery_client()
+    for table in tables:
+        client.delete_table(table, not_found_ok=True)
+
+
 def _normalize_edges(edge_sheet, edge_sheets) -> list[dict]:
     if edge_sheets:
         return list(edge_sheets)
@@ -644,43 +843,16 @@ def _normalize_edges(edge_sheet, edge_sheets) -> list[dict]:
     return []
 
 
-def load_workbook(
-    workbook_bytes: bytes,
+def _load_graph(
+    sheets: dict[str, pd.DataFrame],
     workbook_name: str,
-    node_sheets: list[dict[str, str]] | None = None,
-    edge_sheet: dict[str, str] | None = None,
-    edge_sheets: list[dict[str, str]] | None = None,
+    node_sheets: list[dict],
+    edge_sheets: list[dict],
+    *,
+    declared: bool,
+    analysis: dict | None,
 ) -> dict[str, Any]:
-    """Persist one workbook as one property graph.
-
-    When node_sheets is omitted, sheet roles, id columns, and edges are inferred.
-    An explicit mapping overrides inference. Reloading the same filename replaces
-    that graph and drops tables the new plan no longer uses.
-    """
-    sheets = read_sheets(workbook_bytes)
     name = graph_name_for(workbook_name)
-    declared = bool(node_sheets)
-    if not declared:
-        analysis = analyze_workbook(workbook_bytes)
-        node_sheets = [
-            {"sheet": spec["sheet"], "id_column": spec["id_column"]}
-            for spec in analysis["node_sheets"]
-        ]
-        edge_sheets = analysis["edge_sheets"]
-    else:
-        edge_sheets = _normalize_edges(edge_sheet, edge_sheets)
-        analysis = {
-            "confidence": "declared",
-            "node_sheets": [
-                {
-                    "sheet": spec["sheet"],
-                    "confidence": "declared",
-                    "reason": "Declared by the caller.",
-                }
-                for spec in node_sheets
-            ],
-            "edge_sheets": edge_sheets,
-        }
     if not node_sheets:
         raise ValueError("At least one node sheet mapping is required.")
     node_plans = [_node_plan(sheets, spec, name) for spec in node_sheets]
@@ -692,6 +864,7 @@ def load_workbook(
     db.update_ddl(ddl).result(timeout=300)
     insert_rows(db, node_plans, edge_plans)
     mapping = _catalog_mapping(node_plans, edge_plans, analysis)
+    mapping["tables"] = []
 
     def _write(transaction):
         transaction.insert_or_update(
@@ -712,7 +885,6 @@ def load_workbook(
     for plan in edge_plans:
         counts[plan["table"]] = int(len(plan["frame"]))
     return {
-        "status": "SUCCESS",
         "graph_name": name,
         "node_tables": [plan["table"] for plan in node_plans],
         "edge_tables": [plan["table"] for plan in edge_plans],
@@ -721,6 +893,181 @@ def load_workbook(
         "mapping": mapping,
         "confidence": mapping["confidence"],
         "inferred": not declared,
+    }
+
+
+def _drop_previous_graph(workbook_name: str) -> None:
+    name = graph_name_for(workbook_name)
+    previous = graph_schema(name)
+    if not previous:
+        return
+    db = database()
+    ddl = drop_stale_tables(name, [], [])
+    ddl.append(f"DROP PROPERTY GRAPH IF EXISTS {name}")
+    db.update_ddl(ddl).result(timeout=300)
+
+    def _delete(transaction):
+        transaction.delete(CATALOG, keyset=spanner.KeySet(keys=[[name]]))
+
+    db.run_in_transaction(_delete)
+
+
+def _previous_tables(workbook_name: str) -> list[str]:
+    previous = graph_schema(graph_name_for(workbook_name))
+    if not previous:
+        return []
+    return list((previous.get("mapping") or {}).get("tables") or [])
+
+
+def load_workbook(
+    workbook_bytes: bytes,
+    workbook_name: str,
+    node_sheets: list[dict[str, str]] | None = None,
+    edge_sheet: dict[str, str] | None = None,
+    edge_sheets: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Load each sheet as a BigQuery table or into one Spanner property graph.
+
+    Large raw sheets become tables. Smaller sheets with formulas or key overlap
+    become the graph. An explicit node/edge mapping forces those sheets into the
+    graph and leaves the other sheets as tables. Reloading the same filename
+    replaces both sides and drops objects the new plan no longer uses.
+    """
+    sheets = read_sheets(workbook_bytes)
+    if not sheets:
+        raise ValueError("Workbook has no sheets.")
+    classification = classify_sheets(workbook_bytes)
+    by_sheet = {item["sheet"]: item for item in classification["sheets"]}
+    declared = bool(node_sheets)
+    if declared:
+        declared_edges = _normalize_edges(edge_sheet, edge_sheets)
+        declared_nodes = list(node_sheets or [])
+        for sheet in {spec["sheet"] for spec in declared_nodes + declared_edges}:
+            if sheet not in by_sheet:
+                raise ValueError(f"Sheet {sheet!r} is not in the workbook.")
+            by_sheet[sheet]["destination"] = "graph"
+            by_sheet[sheet]["reason"] = "Declared by the caller."
+    else:
+        declared_nodes = []
+        declared_edges = []
+
+    graph_sheets = {
+        sheet for sheet, item in by_sheet.items() if item["destination"] == "graph"
+    }
+    table_sheets = [
+        sheet for sheet, item in by_sheet.items() if item["destination"] == "table"
+    ]
+    graph: dict[str, Any] | None = None
+    node_specs: list[dict] = []
+    edge_specs: list[dict] = []
+    analysis = None
+    if graph_sheets:
+        if declared:
+            analysis = {
+                "confidence": "declared",
+                "node_sheets": [
+                    {
+                        "sheet": spec["sheet"],
+                        "confidence": "declared",
+                        "reason": "Declared by the caller.",
+                    }
+                    for spec in declared_nodes
+                ],
+                "edge_sheets": declared_edges,
+            }
+            node_specs = declared_nodes
+            edge_specs = declared_edges
+        else:
+            analysis = analyze_workbook(workbook_bytes)
+            node_specs = [
+                {"sheet": spec["sheet"], "id_column": spec["id_column"]}
+                for spec in analysis["node_sheets"]
+                if spec["sheet"] in graph_sheets
+            ]
+            edge_specs = [
+                spec
+                for spec in analysis["edge_sheets"]
+                if spec["sheet"] in graph_sheets
+                and spec.get("source_node") in graph_sheets
+                and spec.get("target_node") in graph_sheets
+            ]
+            graph_sheets = {spec["sheet"] for spec in node_specs + edge_specs}
+            table_sheets = [sheet for sheet in sheets if sheet not in graph_sheets]
+            for item in by_sheet.values():
+                if item["sheet"] in graph_sheets:
+                    continue
+                if item["destination"] == "graph":
+                    item["destination"] = "table"
+                    item["reason"] = (
+                        "No node or edge role remained after graph planning."
+                    )
+
+    previous_tables = _previous_tables(workbook_name)
+    tables = [
+        load_table(workbook_name, sheet, _clean_frame(sheets[sheet]))
+        for sheet in table_sheets
+    ]
+    loaded_ids = {item["table"] for item in tables}
+    drop_bq_tables([table for table in previous_tables if table not in loaded_ids])
+
+    if graph_sheets:
+        graph = _load_graph(
+            sheets,
+            workbook_name,
+            node_specs,
+            edge_specs,
+            declared=declared,
+            analysis=analysis,
+        )
+        graph["mapping"]["tables"] = [item["table"] for item in tables]
+
+        def _write(transaction):
+            transaction.insert_or_update(
+                CATALOG,
+                columns=["graph_name", "workbook_name", "mapping_json", "loaded_at"],
+                values=[
+                    [
+                        graph["graph_name"],
+                        workbook_name[:256],
+                        json.dumps(graph["mapping"]),
+                        spanner.COMMIT_TIMESTAMP,
+                    ]
+                ],
+            )
+
+        database().run_in_transaction(_write)
+    else:
+        _drop_previous_graph(workbook_name)
+
+    return {
+        "status": "SUCCESS",
+        "storage": "split" if tables and graph else ("graph" if graph else "table"),
+        "tables": tables,
+        "graph_name": graph["graph_name"] if graph else None,
+        "node_tables": graph["node_tables"] if graph else [],
+        "edge_tables": graph["edge_tables"] if graph else [],
+        "edge_table": graph["edge_table"] if graph else None,
+        "row_counts": {
+            **{item["table"]: item["row_count"] for item in tables},
+            **(graph["row_counts"] if graph else {}),
+        },
+        "mapping": (
+            graph["mapping"]
+            if graph
+            else {"tables": [item["table"] for item in tables]}
+        ),
+        "confidence": graph["confidence"] if graph else None,
+        "inferred": graph["inferred"] if graph else not declared,
+        "classification": [
+            {
+                "sheet": item["sheet"],
+                "destination": item["destination"],
+                "reason": item["reason"],
+                "row_count": item["row_count"],
+                "formula_count": item["formula_count"],
+            }
+            for item in classification["sheets"]
+        ],
     }
 
 

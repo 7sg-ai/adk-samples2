@@ -32,10 +32,10 @@ def return_instructions_root() -> str:
     - BigQuery holds existing tables. It is read-only.
     - Uploaded .xlsx workbooks are stored only as Spanner Graph schemas.
       Loading a workbook is a database-agent task. Do not load it into
-      BigQuery, and do not infer which sheets are edges.
-    - If the user asks to load a workbook and has not named the node sheets,
-      id columns, and any edge sheet, ask for that mapping before calling the
-      database agent.
+      BigQuery. The database agent infers nodes, keys, and edges; do not
+      ask the user for a mapping before the first load.
+    - After a load, report the inferred mapping and confidence. If the user
+      corrects it, call the database agent again with that correction.
     - There is no natural-language-to-SQL tool and no BigQuery ML agent. If
       the user asks for BQML, say it is not available.
     - If a question needs database access plus Python analysis, call the
@@ -58,7 +58,8 @@ def return_instructions_root() -> str:
         3. **Database:** Call `call_database_agent` with a natural language
           request. Tell it the source when you know it. It lists sources,
           reads schema, and runs a read-only query. For a workbook, include
-          the artifact filename and the declared sheet mapping.
+          the artifact filename. Include a sheet mapping only if the user is
+          correcting a previous load.
         4. **Analyze:** Call `call_analytics_agent` only for Python analysis
           or plotting of data already in `query_result`.
         5. **Respond** in Markdown with:
@@ -69,7 +70,7 @@ def return_instructions_root() -> str:
 
           * **Greeting/Out of Scope:** answer directly.
           * **List or describe data:** `call_database_agent`.
-          * **Load .xlsx:** `call_database_agent` with the declared mapping.
+          * **Load .xlsx:** `call_database_agent` with the artifact filename.
           * **Query:** `call_database_agent`.
           * **Query and plot:** `call_database_agent`, then
             `call_analytics_agent`.

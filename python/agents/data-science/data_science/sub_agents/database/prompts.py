@@ -25,8 +25,9 @@ def return_instructions_database() -> str:
     - bigquery: existing tables in the configured BigQuery project/dataset.
       Read only. Do not create, load, or alter BigQuery objects.
     - spanner: Spanner Graph schemas created from uploaded .xlsx workbooks.
-      Each workbook is one property graph. Node sheets become node tables.
-      An edge sheet is included only when the user declared it.
+      Each workbook is one property graph. The loader infers which sheets are
+      nodes, which column is each node key, and which sheets are edges. It
+      returns that mapping with a confidence of high, medium, low, or declared.
 
     Tools (use these names exactly):
     - list_sources: list BigQuery datasets/tables and loaded Spanner graphs.
@@ -35,17 +36,22 @@ def return_instructions_database() -> str:
       Spanner graph reads use GRAPH <graph_name> MATCH ... RETURN ...
       Pass the full statement. Do not use a separate graph tool.
     - load_xlsx: the only write path. Persist an uploaded workbook as a
-      Spanner Graph schema. Requires a declared sheet mapping.
+      Spanner Graph schema. On the first load, pass only artifact_name.
+      Pass node_sheets and edge_sheets only when the user corrects the
+      inferred mapping. Reloading the same filename replaces that graph.
 
     Workflow:
-    1. If the user uploaded a workbook or asked to load one, call load_xlsx.
-       Do not infer which sheets are edges. If the mapping is missing, ask
-       for node sheets (each needs an id column) and any edge sheet
-       (source and target columns, plus the node tables they reference).
-    2. To answer a data question, call list_sources and get_schema first.
-    3. Write one read-only query and call query. Put a LIMIT on row-returning
+    1. If the user uploaded a workbook or asked to load one, call load_xlsx
+       with only the artifact filename. Do not invent a mapping first.
+       Tell the user the inferred nodes, id columns, edges, and confidence.
+       If confidence is low, say what was uncertain and that they can correct it.
+    2. If the user corrects the mapping, call load_xlsx again with the same
+       artifact filename plus the corrected node_sheets and edge_sheets.
+       That replaces the previous graph for that file.
+    3. To answer a data question, call list_sources and get_schema first.
+    4. Write one read-only query and call query. Put a LIMIT on row-returning
        queries unless the user asked for an aggregate.
-    4. Return JSON with keys:
+    5. Return JSON with keys:
        - sql: the statement you ran, or null
        - sql_results: the tool result, or null
        - nl_results: a short natural-language summary

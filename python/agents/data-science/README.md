@@ -184,8 +184,10 @@ set up the data sources to be used with the agent.
     Uploaded `.xlsx` files are stored as Spanner Graph schemas, not in
     BigQuery. Set `SPANNER_PROJECT_ID`, `SPANNER_INSTANCE_ID`, and
     `SPANNER_DATABASE_ID`. The instance and database must already exist; the
-    agent does not provision them. Node and edge sheets are taken only from
-    the mapping you declare when loading a workbook.
+    agent does not provision them. On upload, the loader infers node sheets,
+    id columns, and edge sheets, then returns that mapping with a confidence
+    score. A later load of the same file can pass an explicit mapping to
+    correct the inference.
 
     BigQuery remains read-only. `BQ_DATA_PROJECT_ID` and `BQ_DATASET_ID` point
     at existing tables. There is no NL2SQL method and no BQML agent.

@@ -132,7 +132,7 @@ async def get_schema(
         dataset_id: BigQuery dataset. Defaults to BQ_DATASET_ID.
 
     Returns:
-        Schema dict. Spanner schema is the declared node/edge mapping.
+        Schema dict. Spanner schema includes inferred or declared nodes and edges.
     """
     source = source.strip().lower()
     if source == "bigquery":
@@ -199,23 +199,28 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
 
 async def load_xlsx(
     artifact_name: str,
-    node_sheets: list[dict],
     tool_context: ToolContext,
+    node_sheets: list[dict] | None = None,
     edge_sheet: dict | None = None,
+    edge_sheets: list[dict] | None = None,
 ) -> dict:
     """Load an uploaded .xlsx artifact into one Spanner Graph schema.
 
     This is the only write path. The workbook is not loaded into BigQuery.
-    Edges are created only when edge_sheet is declared; they are not inferred.
+    Sheet roles, id columns, and edges are inferred when no mapping is passed.
+    Pass node_sheets and edge_sheets only to correct a previous inference.
+    Reloading the same filename replaces that graph.
 
     Args:
         artifact_name: Session artifact filename of the uploaded workbook.
-        node_sheets: [{"sheet": str, "id_column": str}, ...].
-        edge_sheet: Optional mapping with sheet, source_column, target_column,
-            source_node, and target_node. Node fields are sheet names.
+        node_sheets: Optional correction, [{"sheet": str, "id_column": str}].
+            Omit id_column only when the sheet has no unique column.
+        edge_sheet: Optional single correction with sheet, source_column,
+            target_column, source_node, and target_node.
+        edge_sheets: Optional list of those edge mappings. Overrides edge_sheet.
 
     Returns:
-        graph_name, tables, and row counts.
+        graph_name, tables, row counts, mapping, and confidence.
     """
     part = await tool_context.load_artifact(artifact_name)
     if part is None or part.inline_data is None or not part.inline_data.data:
@@ -232,6 +237,7 @@ async def load_xlsx(
             workbook_name=artifact_name,
             node_sheets=node_sheets,
             edge_sheet=edge_sheet,
+            edge_sheets=edge_sheets,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("load_xlsx failed")

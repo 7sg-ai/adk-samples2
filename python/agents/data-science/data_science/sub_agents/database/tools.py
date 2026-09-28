@@ -198,8 +198,8 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
 
 
 async def load_xlsx(
-    artifact_name: str,
     tool_context: ToolContext,
+    artifact_name: str = "",
     node_sheets: list[dict] | None = None,
     edge_sheet: dict | None = None,
     edge_sheets: list[dict] | None = None,
@@ -215,7 +215,9 @@ async def load_xlsx(
     Reloading the same filename replaces that graph.
 
     Args:
-        artifact_name: Session artifact filename of the uploaded workbook.
+        artifact_name: Session artifact filename, or the name the user used for
+            the upload. The tool resolves the stored key if those differ.
+            Omit or pass an empty string when the session has one workbook.
         node_sheets: Optional correction, [{"sheet": str, "id_column": str}].
             Omit id_column only when the sheet has no unique column.
         edge_sheet: Optional single correction with sheet, source_column,
@@ -225,19 +227,15 @@ async def load_xlsx(
     Returns:
         graph_name, tables, row counts, mapping, and confidence.
     """
-    part = await tool_context.load_artifact(artifact_name)
-    if part is None or part.inline_data is None or not part.inline_data.data:
-        return {
-            "status": "ERROR",
-            "error_details": (
-                f"Artifact {artifact_name!r} was not found. Upload the .xlsx "
-                "file in this session and pass its filename."
-            ),
-        }
+    resolved_name, part, error = await xlsx_loader.resolve_xlsx_artifact(
+        tool_context, artifact_name
+    )
+    if error is not None or part is None or resolved_name is None:
+        return {"status": "ERROR", "error_details": error}
     try:
         loaded = xlsx_loader.load_workbook(
             workbook_bytes=part.inline_data.data,
-            workbook_name=artifact_name,
+            workbook_name=resolved_name,
             node_sheets=node_sheets,
             edge_sheet=edge_sheet,
             edge_sheets=edge_sheets,

@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import re
 import uuid
 from datetime import date, datetime
@@ -36,6 +37,8 @@ from google.cloud.spanner_v1 import param_types
 from openpyxl import load_workbook as open_workbook
 
 from data_science.sub_agents.database import settings
+
+logger = logging.getLogger(__name__)
 
 CATALOG = "workbook_catalog"
 MAX_STRING = 1024
@@ -1114,4 +1117,96 @@ def graph_schema(name: str) -> dict[str, Any] | None:
         "confidence": mapping.get("confidence"),
         "query_shape": f"GRAPH {name} MATCH (n) RETURN TO_JSON(n) AS node LIMIT 20",
     }
+
+
+def artifact_key(name: str) -> str:
+    """Normalize a filename so a display name and a stored key can match."""
+    stem = name.removeprefix("user:").strip().strip("\"'")
+    stem = re.sub(r"\s+", " ", stem).casefold()
+    return stem.replace(" ", "_")
+
+
+def workbook_artifact_names(names: list[str]) -> list[str]:
+    return [
+        name
+        for name in names
+        if name.removeprefix("user:").casefold().endswith((".xlsx", ".xlsm"))
+    ]
+
+
+async def _load_named(tool_context: Any, name: str):
+    for candidate in (name, f"user:{name.removeprefix('user:')}"):
+        part = await tool_context.load_artifact(candidate)
+        if part is not None and part.inline_data is not None and part.inline_data.data:
+            return candidate, part
+    return None, None
+
+
+async def resolve_xlsx_artifact(
+    tool_context: Any, artifact_name: str
+) -> tuple[str | None, Any, str | None]:
+    """Find an uploaded workbook even when the model repeats a display name.
+
+    ADK Web stores uploads under the blob display name, or under a generated
+    ``artifact_<invocation>_<index>`` key when that name is missing. The model
+    often asks the user for the original filename and then looks that up. Match
+    the given name, a space/underscore-normalized form, and the only workbook
+    in the session before reporting a miss.
+
+    Returns:
+        (resolved filename, part, error). Exactly one of part or error is set.
+    """
+    requested = (artifact_name or "").strip().strip("\"'")
+    if requested:
+        found_name, part = await _load_named(tool_context, requested)
+        if part is not None:
+            return found_name, part, None
+
+    try:
+        names = list(await tool_context.list_artifacts())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("list_artifacts failed while resolving %r: %s", requested, exc)
+        names = []
+
+    workbooks = workbook_artifact_names(names)
+    if requested:
+        wanted = artifact_key(requested)
+        matches = [name for name in workbooks if artifact_key(name) == wanted]
+        if len(matches) == 1:
+            found_name, part = await _load_named(tool_context, matches[0])
+            if part is not None:
+                return found_name, part, None
+        if len(matches) > 1:
+            return None, None, (
+                f"Multiple artifacts match {requested!r}: {matches}. "
+                "Pass one of those filenames."
+            )
+
+    if len(workbooks) == 1:
+        found_name, part = await _load_named(tool_context, workbooks[0])
+        if part is not None:
+            return found_name, part, None
+
+    # A nameless upload is stored as artifact_<invocation>_<index>. Use that
+    # only when the caller did not name a file and it is the sole artifact.
+    if not requested and len(names) == 1 and not workbooks:
+        found_name, part = await _load_named(tool_context, names[0])
+        if part is not None:
+            return found_name, part, None
+
+    if workbooks:
+        return None, None, (
+            f"Artifact {requested!r} was not found. Uploaded workbooks in this "
+            f"session: {workbooks}. Call load_xlsx again with one of those names."
+        )
+    if names:
+        return None, None, (
+            f"Artifact {requested!r} was not found. Session artifacts are "
+            f"{names}, and none is an .xlsx workbook."
+        )
+    return None, None, (
+        f"Artifact {requested!r} was not found, and this session has no "
+        "artifacts. The upload may not have been saved."
+    )
+
 

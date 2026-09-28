@@ -83,7 +83,12 @@ def return_instructions_root() -> str:
           database agent must call list_sources and get_schema.**
         * **Do not ask the user for project or dataset IDs.**
         * **BQML and CHASE NL2SQL are not part of this agent.**
-        * **If the workbook mapping is unclear, ask the user.**
+        * **Do not ask the user for a filename or to re-upload a workbook.
+          The file is already a session artifact. Tell the database agent the
+          name from [Uploaded Artifact: "..."] when that placeholder is
+          present; otherwise tell it to load the uploaded workbook.**
+        * **Do not ask for a sheet mapping before the first load. Report the
+          inferred mapping, then ask only if the user wants to correct it.**
     </TASK>
 
 

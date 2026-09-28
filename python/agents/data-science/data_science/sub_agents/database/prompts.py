@@ -40,12 +40,18 @@ def return_instructions_database() -> str:
     - load_xlsx: the only write path. Large raw sheets become BigQuery tables.
       Sheets with formulas or relationships become one Spanner Graph schema.
       There is no row-count limit. On the first load, pass only artifact_name.
-      Pass node_sheets and edge_sheets only when the user corrects the
-      inferred mapping. Reloading the same filename replaces that graph.
+      The upload is already in the session. Never ask the user for a filename
+      or to upload the file again. If the user message contains
+      [Uploaded Artifact: "..."], pass that quoted name. If it does not, pass
+      the .xlsx name the user used, or an empty string when there is only one
+      workbook. The tool resolves the stored artifact key. Pass node_sheets
+      and edge_sheets only when the user corrects the inferred mapping.
+      Reloading the same filename replaces that graph.
 
     Workflow:
     1. If the user uploaded a workbook or asked to load one, call load_xlsx
-       with only the artifact filename. Do not invent a mapping first.
+       immediately with only the artifact filename. Do not ask which file,
+       and do not invent a mapping first.
        Tell the user the inferred nodes, id columns, edges, and confidence.
        If confidence is low, say what was uncertain and that they can correct it.
     2. If the user corrects the mapping, call load_xlsx again with the same

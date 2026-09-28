@@ -1,0 +1,248 @@
+apiVersion: wdf.7sg.ai/v2
+kind: WorkloadDefinition
+metadata:
+  name: data-science
+  description: >
+    Multi-agent data-science application built with Google ADK. A top-level
+    agent orchestrates sub-agents for database, analytics, BigQuery, AlloyDB,
+    and graph work. A user uploads an Excel workbook; the database sub-agent
+    profiles the sheets and loads them as a property graph. The user then
+    asks questions against that data. BigQuery and AlloyDB provide the
+    warehouse and operational stores. The model is Gemini 2.5 Flash (root)
+    with per-sub-agent model overrides via environment. Exposes an ADK web
+    UI on port 8080.
+  tags:
+    env: dev
+  labels:
+    app: data-science
+    framework: google-adk
+  annotations:
+    sherpa.7sg.ai/origin: adk-samples2
+  version: "0.1.0"
+
+workload:
+  source:
+    git:
+      repoUrl: https://github.com/7sg-ai/adk-samples2
+      ref: main
+      path: python/agents/data-science
+
+security:
+  policies:
+    secretsInEnvAllowed: true
+
+secrets:
+  provider: external-secrets
+  vaults:
+    - name: gcp-main
+      projectIdRef: gcp-secret-manager-project-id
+      tokenRef: gcp-sa-key-json
+  secretRefs:
+    - name: google-cloud-project
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: google-cloud-project
+    - name: google-cloud-location
+      injectAs: env
+      envVar: GOOGLE_CLOUD_LOCATION
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: google-cloud-location
+    - name: google-api-key
+      injectAs: env
+      envVar: GOOGLE_API_KEY
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: google-api-key
+    - name: deploy-service-account-key
+      injectAs: file
+      filePath: /credentials/deploy-sa.json
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: deploy-service-account-key
+    - name: bq-data-project-id
+      injectAs: env
+      envVar: BQ_DATA_PROJECT_ID
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: bq-data-project-id
+    - name: alloydb-postgres-user
+      injectAs: env
+      envVar: ALLOYDB_POSTGRES_USER
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: alloydb-postgres-user
+    - name: alloydb-postgres-password
+      injectAs: env
+      envVar: ALLOYDB_POSTGRES_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: alloydb-postgres-password
+    - name: yugabyte-user
+      injectAs: env
+      envVar: YUGABYTE_USER
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: yugabyte-user
+    - name: yugabyte-password
+      injectAs: env
+      envVar: YUGABYTE_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: yugabyte-password
+
+dataSources:
+  inputs:
+    - name: bigquery-flights
+      description: >
+        BigQuery warehouse for the flights dataset. Used by the BigQuery
+        sub-agent for analytical queries and cross-dataset joins.
+      dsdfRef: bigquery-flights
+    - name: alloydb-flights
+      description: >
+        AlloyDB operational store for the flights dataset. Accessed by the
+        AlloyDB sub-agent through MCP Toolbox for Databases.
+      dsdfRef: alloydb-flights
+    - name: yugabyte-graph
+      description: >
+        YugabyteDB graph store. The database sub-agent loads an uploaded
+        Excel workbook into this store as a property graph and answers
+        graph questions against it.
+      dsdfRef: yugabyte-graph-gcp
+  outputs: []
+
+scenarios:
+  native:
+    description: >
+      GCP-native deployment. The application runs on Cloud Run. The model is
+      served on Vertex AI (Gemini 2.5 Flash for the root agent; sub-agents
+      inherit or override via environment). BigQuery, AlloyDB, and YugabyteDB
+      all run on Google Cloud. No response-time target on this scenario.
+    topology:
+      components:
+        - name: data-science-service
+          role: api
+          runtime:
+            platform: serverless
+            regions:
+              - us-central1
+            image:
+              repository: data-science
+              tag: latest
+            env:
+              - name: GOOGLE_GENAI_USE_VERTEXAI
+                value: "true"
+              - name: ROOT_AGENT_MODEL
+                value: "gemini-2.5-flash"
+              - name: SERVE_WEB_INTERFACE
+                value: "true"
+            envFromSecretRefs:
+              - google-cloud-project
+              - google-cloud-location
+              - bq-data-project-id
+              - alloydb-postgres-user
+              - alloydb-postgres-password
+              - yugabyte-user
+              - yugabyte-password
+            resources:
+              cpu: "2"
+              memory: 2Gi
+            autoscaling:
+              minReplicas: 1
+              maxReplicas: 5
+              policy:
+                metric: cpu
+                target: 70
+          endpoints:
+            - name: http
+              port: 8080
+              exposure: public
+              protocol: http
+              path: /
+    deployments:
+      - name: data-science-gcp-native
+        target:
+          provider: gcp
+          region: us-central1
+          tdfRef: gcp-native
+        components:
+          - data-science-service
+        dataSources:
+          - bigquery-flights
+          - alloydb-flights
+          - yugabyte-graph-gcp
+
+  alternates:
+    - name: private-ntt
+      description: >
+        Hybrid/private deployment. The application interface stays on Google
+        Cloud. BigQuery and AlloyDB stay on Google Cloud. The model endpoint
+        and the graph store move into the NTT private environment (4 GB10
+        machines, Kubernetes, access through Rancher/RK-API, ARM). The model
+        is reached through NTT's model management API; Sherpa does not stand
+        up the model server itself for this scenario. The graph store is
+        YugabyteDB running in the NTT namespace. Initial response-time target
+        is approximately 5 seconds.
+      topology:
+        components:
+          - name: data-science-service
+            role: api
+            runtime:
+              platform: serverless
+              regions:
+                - us-central1
+              image:
+                repository: data-science
+                tag: latest
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "false"
+                - name: ROOT_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: SERVE_WEB_INTERFACE
+                  value: "true"
+              envFromSecretRefs:
+                - google-cloud-project
+                - google-cloud-location
+                - bq-data-project-id
+                - alloydb-postgres-user
+                - alloydb-postgres-password
+                - ntt-model-endpoint
+                - ntt-model-api-key
+                - yugabyte-ntt-user
+                - yugabyte-ntt-password
+              resources:
+                cpu: "2"
+                memory: 2Gi
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: data-science-private-ntt
+          target:
+            provider: private
+            region: ntt-lab
+            tdfRef: ntt-private
+          components:
+            - data-science-service
+          dataSources:
+            - bigquery-flights
+            - alloydb-flights
+            - yugabyte-graph-ntt
+          sla:
+            targetMs: 5000
+            profile: per-step

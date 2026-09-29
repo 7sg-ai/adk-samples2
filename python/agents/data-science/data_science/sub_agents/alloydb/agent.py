@@ -38,7 +38,9 @@ def setup_before_agent_call(callback_context: CallbackContext) -> None:
 
 
 alloydb_agent = LlmAgent(
-    model=os.getenv("ALLOYDB_AGENT_MODEL", ""),
+    model=os.getenv("ALLOYDB_AGENT_MODEL")
+    or os.getenv("DATABASE_AGENT_MODEL")
+    or "gemini-2.5-flash",
     name="alloydb_agent",
     instruction=return_instructions_alloydb(),
     output_key="alloydb_agent_output",

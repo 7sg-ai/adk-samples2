@@ -4,13 +4,11 @@ metadata:
   name: data-science
   description: >
     Multi-agent data-science application built with Google ADK. A top-level
-    agent orchestrates sub-agents for database, analytics, BigQuery, AlloyDB,
-    and graph work. A user uploads an Excel workbook; the database sub-agent
-    profiles the sheets and loads them as a property graph. The user then
-    asks questions against that data. BigQuery and AlloyDB provide the
-    warehouse and operational stores. The model is Gemini 2.5 Flash (root)
-    with per-sub-agent model overrides via environment. Exposes an ADK web
-    UI on port 8080.
+    agent orchestrates database and analytics work across BigQuery and Spanner
+    Graph. A user uploads an Excel workbook; the database sub-agent profiles
+    its sheets and loads them as a Spanner property graph. The model is Gemini
+    2.5 Flash with per-sub-agent model overrides via environment. Exposes an
+    ADK web UI on port 8080.
   tags:
     env: dev
   labels:
@@ -18,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.1.0"
+  version: "0.2.0"
 
 workload:
   source:
@@ -87,20 +85,6 @@ secrets:
         provider: gcp-secret-manager
         vaultRef: gcp-main
         key: alloydb-postgres-password
-    - name: yugabyte-user
-      injectAs: env
-      envVar: YUGABYTE_USER
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: yugabyte-user
-    - name: yugabyte-password
-      injectAs: env
-      envVar: YUGABYTE_PASSWORD
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: yugabyte-password
     - name: bq-compute-project-id
       injectAs: env
       envVar: BQ_COMPUTE_PROJECT_ID
@@ -157,21 +141,12 @@ dataSources:
         BigQuery warehouse for the flights dataset. Used by the BigQuery
         sub-agent for analytical queries and cross-dataset joins.
       dsdfRef: bigquery-flights
-    - name: alloydb-flights
+    - name: spanner-graph
       description: >
-        AlloyDB operational store for the flights dataset. Accessed by the
-        AlloyDB sub-agent through MCP Toolbox for Databases.
-      dsdfRef: alloydb-flights
-    - name: yugabyte-graph-gcp
-      description: >
-        YugabyteDB graph store on Google Cloud. The database sub-agent loads
-        an uploaded Excel workbook into this store as a property graph.
-      dsdfRef: yugabyte-graph-gcp
-    - name: yugabyte-graph-ntt
-      description: >
-        YugabyteDB graph store in the NTT private lab. Used only by the
-        private-ntt scenario. Home target is ntt-private.
-      dsdfRef: yugabyte-graph-ntt
+        Spanner Graph store for uploaded Excel workbooks. The database
+        sub-agent loads workbook tables and property graphs, then answers
+        read-only graph questions against them.
+      dsdfRef: spanner-graph-gcp
   outputs: []
 
 scenarios:
@@ -179,8 +154,9 @@ scenarios:
     description: >
       GCP-native deployment. The application runs on Cloud Run. The model is
       served on Vertex AI (Gemini 2.5 Flash for the root agent; sub-agents
-      inherit or override via environment). BigQuery, AlloyDB, and YugabyteDB
-      all run on Google Cloud. No response-time target on this scenario.
+      inherit or override via environment). BigQuery provides warehouse
+      analytics and Spanner Graph stores uploaded workbooks. No response-time
+      target on this scenario.
     topology:
       components:
         - name: data-science-service
@@ -203,6 +179,14 @@ scenarios:
                 value: "gemini-2.5-flash"
               - name: SERVE_WEB_INTERFACE
                 value: "true"
+              - name: BQ_DATASET_ID
+                value: "cymbal_flights_dataset"
+              - name: SPANNER_PROJECT_ID
+                value: "gen-lang-client-0373235205"
+              - name: SPANNER_INSTANCE_ID
+                value: "data-science"
+              - name: SPANNER_DATABASE_ID
+                value: "workbook_graph"
               - name: DATASET_CONFIG_FILE
                 value: "/app/flights_dataset_config.json"
             envFromSecretRefs:
@@ -210,13 +194,6 @@ scenarios:
               - google-cloud-location
               - bq-data-project-id
               - bq-compute-project-id
-              - bq-dataset-id
-              - mcp-toolbox-host
-              - mcp-toolbox-port
-              - alloydb-postgres-user
-              - alloydb-postgres-password
-              - yugabyte-user
-              - yugabyte-password
             resources:
               cpu: "2"
               memory: 2Gi
@@ -242,8 +219,7 @@ scenarios:
           - data-science-service
         dataSources:
           - bigquery-flights
-          - alloydb-flights
-          - yugabyte-graph-gcp
+          - spanner-graph-gcp
 
   alternates:
     - name: private-ntt

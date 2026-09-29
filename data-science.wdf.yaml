@@ -101,6 +101,54 @@ secrets:
         provider: gcp-secret-manager
         vaultRef: gcp-main
         key: yugabyte-password
+    - name: bq-compute-project-id
+      injectAs: env
+      envVar: BQ_COMPUTE_PROJECT_ID
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: bq-compute-project-id
+    - name: bq-dataset-id
+      injectAs: env
+      envVar: BQ_DATASET_ID
+      source_type: literal_non_secret
+      value: cymbal_flights_dataset
+    - name: mcp-toolbox-host
+      injectAs: env
+      envVar: MCP_TOOLBOX_HOST
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: mcp-toolbox-host
+    - name: mcp-toolbox-port
+      injectAs: env
+      envVar: MCP_TOOLBOX_PORT
+      source_type: literal_non_secret
+      value: "8080"
+    - name: ntt-model-endpoint
+      injectAs: env
+      envVar: NTT_MODEL_ENDPOINT
+      externalRef:
+        provider: ntt-vault
+        key: ntt-model-endpoint
+    - name: ntt-model-api-key
+      injectAs: env
+      envVar: NTT_MODEL_API_KEY
+      externalRef:
+        provider: ntt-vault
+        key: ntt-model-api-key
+    - name: yugabyte-ntt-user
+      injectAs: env
+      envVar: YUGABYTE_USER
+      externalRef:
+        provider: ntt-vault
+        key: yugabyte-ntt-user
+    - name: yugabyte-ntt-password
+      injectAs: env
+      envVar: YUGABYTE_PASSWORD
+      externalRef:
+        provider: ntt-vault
+        key: yugabyte-ntt-password
 
 dataSources:
   inputs:
@@ -114,12 +162,16 @@ dataSources:
         AlloyDB operational store for the flights dataset. Accessed by the
         AlloyDB sub-agent through MCP Toolbox for Databases.
       dsdfRef: alloydb-flights
-    - name: yugabyte-graph
+    - name: yugabyte-graph-gcp
       description: >
-        YugabyteDB graph store. The database sub-agent loads an uploaded
-        Excel workbook into this store as a property graph and answers
-        graph questions against it.
+        YugabyteDB graph store on Google Cloud. The database sub-agent loads
+        an uploaded Excel workbook into this store as a property graph.
       dsdfRef: yugabyte-graph-gcp
+    - name: yugabyte-graph-ntt
+      description: >
+        YugabyteDB graph store in the NTT private lab. Used only by the
+        private-ntt scenario. Home target is ntt-private.
+      dsdfRef: yugabyte-graph-ntt
   outputs: []
 
 scenarios:
@@ -145,12 +197,22 @@ scenarios:
                 value: "true"
               - name: ROOT_AGENT_MODEL
                 value: "gemini-2.5-flash"
+              - name: ANALYTICS_AGENT_MODEL
+                value: "gemini-2.5-flash"
+              - name: DATABASE_AGENT_MODEL
+                value: "gemini-2.5-flash"
               - name: SERVE_WEB_INTERFACE
                 value: "true"
+              - name: DATASET_CONFIG_FILE
+                value: "/app/flights_dataset_config.json"
             envFromSecretRefs:
               - google-cloud-project
               - google-cloud-location
               - bq-data-project-id
+              - bq-compute-project-id
+              - bq-dataset-id
+              - mcp-toolbox-host
+              - mcp-toolbox-port
               - alloydb-postgres-user
               - alloydb-postgres-password
               - yugabyte-user
@@ -210,12 +272,23 @@ scenarios:
                   value: "false"
                 - name: ROOT_AGENT_MODEL
                   value: "gemini-2.5-flash"
+                - name: ANALYTICS_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: DATABASE_AGENT_MODEL
+                  value: "gemini-2.5-flash"
                 - name: SERVE_WEB_INTERFACE
                   value: "true"
+                - name: DATASET_CONFIG_FILE
+                  value: "/app/flights_dataset_config.json"
               envFromSecretRefs:
                 - google-cloud-project
                 - google-cloud-location
+                - google-api-key
                 - bq-data-project-id
+                - bq-compute-project-id
+                - bq-dataset-id
+                - mcp-toolbox-host
+                - mcp-toolbox-port
                 - alloydb-postgres-user
                 - alloydb-postgres-password
                 - ntt-model-endpoint
@@ -225,6 +298,12 @@ scenarios:
               resources:
                 cpu: "2"
                 memory: 2Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 5
+                policy:
+                  metric: cpu
+                  target: 70
             endpoints:
               - name: http
                 port: 8080
@@ -234,9 +313,9 @@ scenarios:
       deployments:
         - name: data-science-private-ntt
           target:
-            provider: private
-            region: ntt-lab
-            tdfRef: ntt-private
+            provider: gcp
+            region: us-central1
+            tdfRef: gcp-native
           components:
             - data-science-service
           dataSources:

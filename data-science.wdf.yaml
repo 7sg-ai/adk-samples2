@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.2.0"
+  version: "0.2.1"
 
 workload:
   source:
@@ -159,7 +159,7 @@ scenarios:
       target on this scenario.
     topology:
       components:
-        - name: data-science-service
+        - name: data-science
           role: api
           runtime:
             platform: serverless
@@ -216,7 +216,7 @@ scenarios:
           region: us-central1
           tdfRef: gcp-native
         components:
-          - data-science-service
+          - data-science
         dataSources:
           - bigquery-flights
           - spanner-graph-gcp
@@ -234,7 +234,7 @@ scenarios:
         is approximately 5 seconds.
       topology:
         components:
-          - name: data-science-service
+          - name: data-science
             role: api
             runtime:
               platform: serverless
@@ -293,7 +293,7 @@ scenarios:
             region: us-central1
             tdfRef: gcp-native
           components:
-            - data-science-service
+            - data-science
           dataSources:
             - bigquery-flights
             - alloydb-flights

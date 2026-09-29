@@ -14,7 +14,7 @@
 
 """Top level agent for data agent multi-agents.
 
--- it gets data from BigQuery or a loaded Spanner Graph
+-- it gets data from BigQuery, AlloyDB, or a loaded Spanner Graph
 -- then, it uses NL2Py to do further data analysis as needed
 """
 
@@ -37,7 +37,7 @@ from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
 from .prompts import return_instructions_root
-from .tools import call_analytics_agent, call_database_agent
+from .tools import call_alloydb_agent, call_analytics_agent, call_database_agent
 
 # Configure Weave endpoint and authentication.
 _WANDB_BASE_URL = "https://trace.wandb.ai"
@@ -75,7 +75,7 @@ _logger = logging.getLogger(__name__)
 # Initialize module-level config variables
 _dataset_config = {}
 _database_settings = {}
-_supported_dataset_types = ["bigquery", "spanner"]
+_supported_dataset_types = ["bigquery", "alloydb", "spanner"]
 _required_dataset_config_params = ["name", "description"]
 
 
@@ -118,6 +118,16 @@ def get_database_settings(db_type: str) -> dict:
                 "BigQuery tables are listed at runtime with list_sources and "
                 "get_schema. Configured dataset: "
                 f"{os.getenv('BQ_DATASET_ID', '')}."
+            )
+        }
+    if db_type == "alloydb":
+        return {
+            "schema": (
+                "AlloyDB tables are queried through the MCP Toolbox by "
+                "call_alloydb_agent. Toolbox: "
+                f"{os.getenv('MCP_TOOLBOX_HOST', 'localhost')}:"
+                f"{os.getenv('MCP_TOOLBOX_PORT', '5000')}, "
+                f"toolset {os.getenv('ALLOYDB_TOOLSET', 'postgres-database-tools')}."
             )
         }
     return {
@@ -181,6 +191,8 @@ def load_database_settings_in_context(callback_context: CallbackContext):
 
 def get_root_agent() -> LlmAgent:
     tools = [call_analytics_agent, call_database_agent]
+    if any(dataset["type"] == "alloydb" for dataset in _dataset_config["datasets"]):
+        tools.append(call_alloydb_agent)
     agent = LlmAgent(
         model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
         name="data_science_root_agent",

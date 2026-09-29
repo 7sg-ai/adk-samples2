@@ -1,0 +1,49 @@
+apiVersion: dsdf.7sg.ai/v1
+kind: DataSourceDefinition
+metadata:
+  name: yugabyte-graph-gcp
+  version: "1.0.0"
+  tags:
+    env: prod
+    role: graph
+home:
+  tdfRef: gcp-native
+connection:
+  type: database
+  provider: yugabyte
+  resource: workbook_graph
+  capabilities:
+    graphEngine: apache-age
+    supportsPropertyGraph: true
+    excelLoader: true
+    arch: x86_64
+auth:
+  method: password
+  secretRefs:
+    - yugabyte-user
+    - yugabyte-password
+secrets:
+  provider: gcpSecretManager
+  inheritFromWdf: true
+  secretRefs:
+    - name: yugabyte-user
+      injectAs: env
+      envVar: YUGABYTE_USER
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: yugabyte-user
+    - name: yugabyte-password
+      injectAs: env
+      envVar: YUGABYTE_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: yugabyte-password
+notes:
+  - >
+    The upstream agent's xlsx_loader emits Spanner Graph DDL
+    (CREATE PROPERTY GRAPH). YugabyteDB is PostgreSQL-compatible and uses
+    Apache AGE for property-graph support, so the loader needs adapting
+    to emit AGE-compatible DDL. That is a Story 1/2 code task, not a
+    definition-file issue.

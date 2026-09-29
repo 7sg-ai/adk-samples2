@@ -19,7 +19,7 @@ import logging
 from google.adk.tools import ToolContext
 from google.adk.tools.agent_tool import AgentTool
 
-from .sub_agents import get_analytics_agent, get_database_agent
+from .sub_agents import get_alloydb_agent, get_analytics_agent, get_database_agent
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,25 @@ async def call_database_agent(
         args={"request": question}, tool_context=tool_context
     )
     tool_context.state["database_agent_output"] = output
+    return output
+
+
+async def call_alloydb_agent(
+    question: str,
+    tool_context: ToolContext,
+):
+    """Call the AlloyDB agent for the flights database.
+
+    Use this for questions about the AlloyDB dataset. It generates Postgres
+    SQL and runs it through the MCP Toolbox. Do not use this for BigQuery or
+    for loading an uploaded workbook.
+    """
+    logger.debug("call_alloydb_agent: %s", question)
+    agent_tool = AgentTool(agent=get_alloydb_agent())
+    output = await agent_tool.run_async(
+        args={"request": question}, tool_context=tool_context
+    )
+    tool_context.state["alloydb_agent_output"] = output
     return output
 
 

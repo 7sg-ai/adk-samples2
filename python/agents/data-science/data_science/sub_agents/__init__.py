@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+def get_alloydb_agent():
+    from .alloydb.agent import alloydb_agent
+
+    return alloydb_agent
+
+
 def get_analytics_agent():
     from .analytics.agent import analytics_agent
 

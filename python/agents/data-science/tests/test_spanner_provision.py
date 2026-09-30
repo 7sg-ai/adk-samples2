@@ -173,6 +173,19 @@ def test_request_validation_rejects_invalid_payloads():
     with pytest.raises(ValueError, match="ownedResources"):
         module.parse_request(absent_payload)
 
+    invalid_owned_resources_cases = [
+        ([database_resource_id(payload), database_resource_id(payload)], "duplicates"),
+        (["projects/demo-project/instances/data-science/databases/other"], "ownedResources"),
+        (["projects/other-project/instances/data-science"], "ownedResources"),
+        (["not-a-resource-id"], "ownedResources"),
+    ]
+    for owned_resources, expected in invalid_owned_resources_cases:
+        absent_payload = dict(payload)
+        absent_payload["desiredState"] = "absent"
+        absent_payload["ownedResources"] = owned_resources
+        with pytest.raises(ValueError, match=expected):
+            module.parse_request(absent_payload)
+
 
 def test_missing_gcloud_fails_before_create():
     module = load_module()
@@ -344,11 +357,11 @@ def test_absent_deletes_owned_database_then_owned_instance():
     ]
 
 
-def test_absent_skips_shared_resources():
+def test_absent_skips_shared_database_and_preserves_non_owned_instance():
     module = load_module()
     payload = valid_payload()
     payload["desiredState"] = "absent"
-    payload["ownedResources"] = ["projects/demo-project/instances/data-science/databases/other"]
+    payload["ownedResources"] = [instance_resource_id(payload)]
     request = module.parse_request(payload)
     adapter = FakeAdapter(
         instance_exists=True,
@@ -371,6 +384,64 @@ def test_absent_skips_shared_resources():
             "id": instance_resource_id(payload),
             "action": "skipped_shared",
             "ownership": "shared",
+        },
+    ]
+    assert [call[0] for call in adapter.calls if call[0].startswith("delete_")] == []
+
+
+def test_absent_reports_already_absent_database_when_owned():
+    module = load_module()
+    payload = valid_payload()
+    payload["desiredState"] = "absent"
+    payload["ownedResources"] = [database_resource_id(payload)]
+    request = module.parse_request(payload)
+    adapter = FakeAdapter(instance_exists=True, database_exists=False, databases_in_instance=[])
+
+    result = module.provision(request, adapter)
+
+    assert result["status"] == "succeeded"
+    assert result["resources"] == [
+        {
+            "type": "spanner_database",
+            "id": database_resource_id(payload),
+            "action": "already_absent",
+            "ownership": "run_owned",
+        },
+        {
+            "type": "spanner_instance",
+            "id": instance_resource_id(payload),
+            "action": "skipped_shared",
+            "ownership": "shared",
+        },
+    ]
+
+
+def test_absent_reports_already_absent_database_and_instance_when_owned():
+    module = load_module()
+    payload = valid_payload()
+    payload["desiredState"] = "absent"
+    payload["ownedResources"] = [
+        database_resource_id(payload),
+        instance_resource_id(payload),
+    ]
+    request = module.parse_request(payload)
+    adapter = FakeAdapter(instance_exists=False, database_exists=False, databases_in_instance=[])
+
+    result = module.provision(request, adapter)
+
+    assert result["status"] == "succeeded"
+    assert result["resources"] == [
+        {
+            "type": "spanner_database",
+            "id": database_resource_id(payload),
+            "action": "already_absent",
+            "ownership": "run_owned",
+        },
+        {
+            "type": "spanner_instance",
+            "id": instance_resource_id(payload),
+            "action": "already_absent",
+            "ownership": "run_owned",
         },
     ]
 

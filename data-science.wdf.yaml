@@ -22,7 +22,7 @@ workload:
   source:
     git:
       repoUrl: https://github.com/7sg-ai/adk-samples2
-      ref: main
+      ref: ntt-demo/data-science-wdf
       path: python/agents/data-science
 
 security:

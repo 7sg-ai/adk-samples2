@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.2.1"
+  version: "0.2.2"
 
 workload:
   source:
@@ -133,6 +133,20 @@ secrets:
       externalRef:
         provider: ntt-vault
         key: yugabyte-ntt-password
+    - name: postgres-acme-password
+      injectAs: env
+      envVar: POSTGRES_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: postgres-acme-password
+    - name: neo4j-password
+      injectAs: env
+      envVar: NEO4J_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: neo4j-password
 
 dataSources:
   inputs:
@@ -147,6 +161,22 @@ dataSources:
         sub-agent loads workbook tables and property graphs, then answers
         read-only graph questions against them.
       dsdfRef: spanner-graph-gcp
+    - name: bigquery-workbook
+      description: >
+        BigQuery dataset workbook_data. Holds the Acme workbook tables the
+        agent queries. The dataset stays in GCP.
+      dsdfRef: bigquery-workbook
+    - name: postgres-acme
+      description: >
+        In-cluster Postgres in ntt-tenant-a. A deploy Job loads
+        sample_data/Acme Corp Financial Model.xlsx into this database.
+      dsdfRef: postgres-acme
+    - name: neo4j-graph-ntt
+      description: >
+        In-cluster Neo4j in ntt-tenant-a, standing in for Spanner Graph.
+        Declared for the private-ntt scenario. The app does not select it
+        until it accepts dataset type neo4j.
+      dsdfRef: neo4j-graph-ntt
   outputs: []
 
 scenarios:
@@ -224,80 +254,116 @@ scenarios:
   alternates:
     - name: private-ntt
       description: >
-        Hybrid/private deployment. The application interface stays on Google
-        Cloud. BigQuery and AlloyDB stay on Google Cloud. The model endpoint
-        and the graph store move into the NTT private environment (4 GB10
-        machines, Kubernetes, access through Rancher/RK-API, ARM). The model
-        is reached through NTT's model management API; Sherpa does not stand
-        up the model server itself for this scenario. The graph store is
-        YugabyteDB running in the NTT namespace. Initial response-time target
-        is approximately 5 seconds.
+        App, Postgres, and Neo4j run in ntt-tenant-a on the NTT prep cluster.
+        The model stays Gemini 2.5 Flash on Vertex. BigQuery workbook_data
+        stays in GCP. A Job loads the Acme workbook from sample_data into
+        Postgres. Neo4j is deployed in the namespace and is not selected by
+        the dataset config yet.
       topology:
         components:
           - name: data-science
             role: api
             runtime:
-              platform: serverless
-              regions:
-                - us-central1
+              platform: kubernetes
+              namespace: ntt-tenant-a
               image:
                 repository: data-science
                 tag: latest
               env:
                 - name: GOOGLE_GENAI_USE_VERTEXAI
-                  value: "false"
+                  value: "true"
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /credentials/deploy-sa.json
                 - name: ROOT_AGENT_MODEL
-                  value: "gemini-2.5-flash"
+                  value: gemini-2.5-flash
                 - name: ANALYTICS_AGENT_MODEL
-                  value: "gemini-2.5-flash"
+                  value: gemini-2.5-flash
                 - name: DATABASE_AGENT_MODEL
-                  value: "gemini-2.5-flash"
+                  value: gemini-2.5-flash
                 - name: SERVE_WEB_INTERFACE
                   value: "true"
+                - name: BQ_DATASET_ID
+                  value: workbook_data
                 - name: DATASET_CONFIG_FILE
-                  value: "/app/flights_dataset_config.json"
+                  value: /app/flights_dataset_config.json
+                - name: POSTGRES_HOST
+                  value: postgres-acme.ntt-tenant-a.svc
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_DB
+                  value: acme
+                - name: POSTGRES_USER
+                  value: acme
+                - name: NEO4J_URI
+                  value: bolt://neo4j.ntt-tenant-a.svc:7687
               envFromSecretRefs:
                 - google-cloud-project
                 - google-cloud-location
-                - google-api-key
+                - deploy-service-account-key
                 - bq-data-project-id
                 - bq-compute-project-id
-                - bq-dataset-id
-                - mcp-toolbox-host
-                - mcp-toolbox-port
-                - alloydb-postgres-user
-                - alloydb-postgres-password
-                - ntt-model-endpoint
-                - ntt-model-api-key
-                - yugabyte-ntt-user
-                - yugabyte-ntt-password
+                - postgres-acme-password
+                - neo4j-password
               resources:
-                cpu: "2"
+                cpu: "1"
                 memory: 2Gi
-              autoscaling:
-                minReplicas: 1
-                maxReplicas: 5
-                policy:
-                  metric: cpu
-                  target: 70
             endpoints:
               - name: http
                 port: 8080
-                exposure: public
+                exposure: private
                 protocol: http
                 path: /
+          - name: postgres-acme
+            role: database
+            runtime:
+              platform: kubernetes
+              namespace: ntt-tenant-a
+              image:
+                repository: postgres
+                tag: "16"
+              env:
+                - name: POSTGRES_DB
+                  value: acme
+                - name: POSTGRES_USER
+                  value: acme
+              envFromSecretRefs:
+                - postgres-acme-password
+              resources:
+                cpu: "500m"
+                memory: 1Gi
+              persistence:
+                storageClass: longhorn
+                size: 20Gi
+          - name: neo4j
+            role: database
+            runtime:
+              platform: kubernetes
+              namespace: ntt-tenant-a
+              image:
+                repository: neo4j
+                tag: "5"
+              envFromSecretRefs:
+                - neo4j-password
+              resources:
+                cpu: "1"
+                memory: 2Gi
+              persistence:
+                storageClass: longhorn
+                size: 20Gi
       deployments:
         - name: data-science-private-ntt
           target:
-            provider: gcp
-            region: us-central1
-            tdfRef: gcp-native
+            provider: kubernetes
+            region: ntt-lab
+            tdfRef: ntt-private
           components:
             - data-science
+            - postgres-acme
+            - neo4j
           dataSources:
-            - bigquery-flights
-            - alloydb-flights
-            - yugabyte-graph-ntt
+            - bigquery-workbook
+            - postgres-acme
+            - neo4j-graph-ntt
           sla:
             targetMs: 5000
             profile: per-step

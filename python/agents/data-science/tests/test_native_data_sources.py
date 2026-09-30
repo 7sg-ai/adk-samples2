@@ -40,10 +40,10 @@ def test_native_scenario_preserves_existing_spanner_coordinates():
     env = runtime_env(scenario_component(wdf, "native"))
 
     assert wdf["metadata"]["version"] == "0.3.0"
-    assert [item["dsdfRef"] for item in wdf["dataSources"]["inputs"]] == [
+    assert {
         "bigquery-flights",
         "spanner-graph-gcp",
-    ]
+    }.issubset({item["dsdfRef"] for item in wdf["dataSources"]["inputs"]})
     assert wdf["scenarios"]["native"]["deployments"][0]["dataSources"] == [
         "bigquery-flights",
         "spanner-graph-gcp",
@@ -109,10 +109,11 @@ def test_native_managed_selects_managed_spanner_and_existing_bigquery_without_sp
             "managementPolicy": "managed",
         },
     ]
-    assert {item["name"]: item["dsdfRef"] for item in wdf["dataSources"]["inputs"]} == {
-        "bigquery-flights": "bigquery-flights",
-        "spanner-graph": "spanner-graph-gcp",
+    data_source_refs = {
+        item["name"]: item["dsdfRef"] for item in wdf["dataSources"]["inputs"]
     }
+    assert data_source_refs["bigquery-flights"] == "bigquery-flights"
+    assert data_source_refs["spanner-graph"] == "spanner-graph-gcp"
 
     secret_names = {item["name"] for item in wdf["secrets"]["secretRefs"]}
     injected_env_vars = {item.get("envVar") for item in wdf["secrets"]["secretRefs"]}

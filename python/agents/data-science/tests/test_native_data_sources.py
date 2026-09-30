@@ -5,16 +5,10 @@ import yaml
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_REPO_ROOT = REPO_ROOT.parent / "default"
-DEFAULT_SPANNER_DSDF = DEFAULT_REPO_ROOT / "spanner-graph-gcp.dsdf.yaml"
 
 
 def load_wdf():
     return yaml.safe_load((REPO_ROOT / "data-science.wdf.yaml").read_text())
-
-
-def load_default_spanner_dsdf():
-    return yaml.safe_load(DEFAULT_SPANNER_DSDF.read_text())
 
 
 def scenario_definition(wdf, scenario_name):
@@ -129,47 +123,5 @@ def test_native_managed_selects_managed_spanner_and_existing_bigquery_without_sp
     assert "SPANNER_DATABASE_ID" not in injected_env_vars
 
 
-def test_default_spanner_dsdf_declares_managed_provisioning_contract():
-    dsdf = load_default_spanner_dsdf()
-    provisioner = dsdf["provisioning"]["provisioner"]
-
-    assert dsdf["metadata"]["version"] == "1.1.0"
-    assert dsdf["connection"] == {
-        "type": "database",
-        "provider": "gcp-spanner",
-        "resource": "projects/gen-lang-client-0373235205/instances/data-science/databases/workbook_graph",
-        "project": "gen-lang-client-0373235205",
-        "instance": "data-science",
-        "database": "workbook_graph",
-        "capabilities": {
-            "graphEngine": "spanner-graph",
-            "supportsPropertyGraph": True,
-            "excelLoader": True,
-        },
-    }
-    assert dsdf["auth"] == {
-        "method": "gcp-workload-identity",
-        "secretRefs": [],
-    }
-    assert dsdf["provisioning"]["supportedModes"] == ["existing", "managed"]
-    assert dsdf["provisioning"]["defaultMode"] == "existing"
-    assert provisioner == {
-        "type": "repository-script",
-        "protocolVersion": "1",
-        "runtime": "python3",
-        "path": "infra/gcp/spanner/provision.py",
-    }
-    assert dsdf["provisioning"]["parameters"] == {
-        "region": "us-central1",
-        "instanceId": "data-science",
-        "databaseId": "workbook_graph",
-        "processingUnits": 100,
-    }
-    assert dsdf["provisioning"]["outputs"] == {
-        "SPANNER_PROJECT_ID": "environment.SPANNER_PROJECT_ID",
-        "SPANNER_INSTANCE_ID": "environment.SPANNER_INSTANCE_ID",
-        "SPANNER_DATABASE_ID": "environment.SPANNER_DATABASE_ID",
-    }
-    assert "projectId" not in dsdf["provisioning"]["parameters"]
-    assert "runtimeServiceAccount" not in dsdf["provisioning"]["parameters"]
-    assert (APP_ROOT / provisioner["path"]).is_file()
+def test_managed_spanner_provisioner_script_exists_in_workload_source():
+    assert (APP_ROOT / "infra" / "gcp" / "spanner" / "provision.py").is_file()

@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.2.2"
+  version: "0.3.0"
 
 workload:
   source:
@@ -252,6 +252,75 @@ scenarios:
           - spanner-graph-gcp
 
   alternates:
+    - name: native-managed
+      description: >
+        GCP-native deployment with Sherpa-managed Spanner provisioning. The
+        application runs on Cloud Run. The model is served on Vertex AI
+        (Gemini 2.5 Flash for the root agent; sub-agents inherit or override
+        via environment). BigQuery remains an existing warehouse dependency
+        while Sherpa provisions the Spanner Graph store for uploaded
+        workbooks. No response-time target on this scenario.
+      topology:
+        components:
+          - name: data-science
+            role: api
+            runtime:
+              platform: serverless
+              regions:
+                - us-central1
+              image:
+                repository: data-science
+                tag: latest
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "true"
+                - name: ROOT_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: ANALYTICS_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: DATABASE_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: SERVE_WEB_INTERFACE
+                  value: "true"
+                - name: BQ_DATASET_ID
+                  value: "cymbal_flights_dataset"
+                - name: DATASET_CONFIG_FILE
+                  value: "/app/flights_dataset_config.json"
+              envFromSecretRefs:
+                - google-cloud-project
+                - google-cloud-location
+                - bq-data-project-id
+                - bq-compute-project-id
+              resources:
+                cpu: "2"
+                memory: 2Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 5
+                policy:
+                  metric: cpu
+                  target: 70
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: data-science-gcp-native-managed
+          target:
+            provider: gcp
+            region: us-central1
+            tdfRef: gcp-native
+          components:
+            - data-science
+          dataSources:
+            - name: bigquery-flights
+              dsdfRef: bigquery-flights
+              managementPolicy: existing
+            - name: spanner-graph-gcp
+              dsdfRef: spanner-graph-gcp
+              managementPolicy: managed
     - name: private-ntt
       description: >
         App, Postgres, and Neo4j run in ntt-tenant-a on the NTT prep cluster.

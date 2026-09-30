@@ -311,8 +311,10 @@ def parse_request(payload: Mapping[str, object]) -> ProvisionRequest:
         runtime_service_account, SERVICE_ACCOUNT_RE, "runtimeServiceAccount"
     )
 
-    if desired_state == "absent" and not owned_resources:
-        raise ValueError("ownedResources must include exact owned resource IDs")
+    if desired_state == "absent":
+        if not owned_resources:
+            raise ValueError("ownedResources must include exact owned resource IDs")
+        _validate_owned_resources(project_id, instance_id, database_id, owned_resources)
 
     return ProvisionRequest(
         protocol_version=protocol_version,
@@ -528,6 +530,24 @@ def _database_resource_id(request: ProvisionRequest) -> str:
     return (
         f"{_instance_resource_id(request)}/databases/{request.database_id}"
     )
+
+
+def _validate_owned_resources(
+    project_id: str,
+    instance_id: str,
+    database_id: str,
+    owned_resources: tuple[str, ...],
+) -> None:
+    allowed_resource_ids = {
+        f"projects/{project_id}/instances/{instance_id}",
+        f"projects/{project_id}/instances/{instance_id}/databases/{database_id}",
+    }
+    if len(set(owned_resources)) != len(owned_resources):
+        raise ValueError("ownedResources must not contain duplicates")
+    if any(resource_id not in allowed_resource_ids for resource_id in owned_resources):
+        raise ValueError(
+            "ownedResources must contain only this request's full instance or database ID"
+        )
 
 
 def _require_string(payload: Mapping[str, object], key: str) -> str:

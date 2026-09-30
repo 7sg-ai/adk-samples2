@@ -335,6 +335,8 @@ scenarios:
             runtime:
               platform: kubernetes
               namespace: ntt-tenant-a
+              regions:
+                - ntt-lab
               image:
                 repository: data-science
                 tag: latest
@@ -376,17 +378,25 @@ scenarios:
               resources:
                 cpu: "1"
                 memory: 2Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 5
+                policy:
+                  metric: cpu
+                  target: 70
             endpoints:
               - name: http
                 port: 8080
-                exposure: private
+                exposure: internal
                 protocol: http
                 path: /
           - name: postgres-acme
-            role: database
+            role: custom
             runtime:
               platform: kubernetes
               namespace: ntt-tenant-a
+              regions:
+                - ntt-lab
               image:
                 repository: postgres
                 tag: "16"
@@ -400,14 +410,22 @@ scenarios:
               resources:
                 cpu: "500m"
                 memory: 1Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+                policy:
+                  metric: cpu
+                  target: 70
               persistence:
                 storageClass: longhorn
                 size: 20Gi
           - name: neo4j
-            role: database
+            role: custom
             runtime:
               platform: kubernetes
               namespace: ntt-tenant-a
+              regions:
+                - ntt-lab
               image:
                 repository: neo4j
                 tag: "5"
@@ -416,6 +434,12 @@ scenarios:
               resources:
                 cpu: "1"
                 memory: 2Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 1
+                policy:
+                  metric: cpu
+                  target: 70
               persistence:
                 storageClass: longhorn
                 size: 20Gi

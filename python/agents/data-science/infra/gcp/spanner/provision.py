@@ -128,7 +128,7 @@ class GcloudSpannerAdapter:
                 "--config",
                 f"regional-{region}",
                 "--description",
-                "Sherpa-managed Data Science Spanner instance",
+                _instance_display_name(instance_id),
                 "--processing-units",
                 str(processing_units),
                 "--labels",
@@ -565,6 +565,11 @@ def _validate_identifier(value: str, pattern: re.Pattern[str], field: str) -> No
 def normalize_run_id(run_id: str) -> str:
     normalized = re.sub(r"[^a-z0-9-]+", "-", run_id.lower()).strip("-")
     return (normalized or "run")[:63]
+
+
+def _instance_display_name(instance_id: str) -> str:
+    """GCP requires Spanner display names to be 4-30 characters."""
+    return f"Sherpa-managed {instance_id}"[:30]
 
 
 def sanitize_error_message(message: str) -> str:

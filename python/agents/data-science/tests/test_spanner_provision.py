@@ -469,6 +469,27 @@ def test_absent_reports_already_absent_database_and_instance_when_owned():
     ]
 
 
+def test_create_instance_display_name_within_gcp_limit(monkeypatch):
+    module = load_module()
+    adapter = module.GcloudSpannerAdapter()
+    captured = {}
+
+    def fake_run_gcloud(args):
+        captured["args"] = args
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(adapter, "_run_gcloud", fake_run_gcloud)
+
+    adapter.create_instance(
+        "demo-project", "us-central1", "data-science", 100, "run-123"
+    )
+
+    description = captured["args"][captured["args"].index("--description") + 1]
+    assert 4 <= len(description) <= 30, (
+        "Spanner display name must be 4-30 characters per GCP limits"
+    )
+
+
 def test_provider_exception_output_contains_no_credential_material():
     module = load_module()
     request = module.parse_request(valid_payload())

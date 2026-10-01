@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,6 +36,28 @@ def valid_payload():
         "processingUnits": 100,
         "runtimeServiceAccount": "ds-agent@demo-project.iam.gserviceaccount.com",
         "ownedResources": [],
+    }
+
+
+def test_script_entrypoint_emits_protocol_json_for_invalid_request():
+    completed = subprocess.run(
+        [sys.executable, str(MODULE_PATH)],
+        input=json.dumps({"protocolVersion": "1"}),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert json.loads(completed.stdout) == {
+        "protocolVersion": "1",
+        "status": "failed",
+        "resources": [],
+        "environment": {},
+        "error": {
+            "code": "invalid_request",
+            "message": "desiredState must be a non-empty string",
+        },
     }
 
 

@@ -581,3 +581,7 @@ def sanitize_error_message(message: str) -> str:
     for pattern, replacement in redactions:
         sanitized = re.sub(pattern, replacement, sanitized)
     return sanitized.strip()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

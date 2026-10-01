@@ -105,3 +105,16 @@ if __name__ == "__main__":
     # testagent.setUp(testagent)
     # testagent.test_root_agent_can_list_tools(testagent)
     # testagent.test_db_agent_can_handle_env_query(testagent)
+
+
+class TestSpannerToolsetCredentials(unittest.TestCase):
+  """Regression: empty SpannerCredentialsConfig() fails validation in ADK >= 2.
+
+  The SpannerToolset must omit credentials_config so the Spanner client falls
+  back to Application Default Credentials (Cloud Run runtime service account).
+  """
+
+  def test_spanner_toolset_omits_credentials_config(self):
+    from data_science.sub_agents.database import tools as db_tools
+
+    self.assertIsNone(db_tools._spanner_toolset._credentials_config)

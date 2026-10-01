@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.3.0"
+  version: "0.4.0"
 
 workload:
   source:
@@ -254,12 +254,13 @@ scenarios:
   alternates:
     - name: native-managed
       description: >
-        GCP-native deployment with Sherpa-managed Spanner provisioning. The
-        application runs on Cloud Run. The model is served on Vertex AI
-        (Gemini 2.5 Flash for the root agent; sub-agents inherit or override
-        via environment). BigQuery remains an existing warehouse dependency
-        while Sherpa provisions the Spanner Graph store for uploaded
-        workbooks. No response-time target on this scenario.
+        GCP-native deployment with Sherpa-managed Spanner and BigQuery
+        provisioning. The application runs on Cloud Run. The model is served
+        on Vertex AI (Gemini 2.5 Flash for the root agent; sub-agents
+        inherit or override via environment). Sherpa provisions both the
+        BigQuery flights dataset (with seed tables) and the Spanner Graph
+        store for uploaded workbooks. No response-time target on this
+        scenario.
       topology:
         components:
           - name: data-science
@@ -282,8 +283,6 @@ scenarios:
                   value: "gemini-2.5-flash"
                 - name: SERVE_WEB_INTERFACE
                   value: "true"
-                - name: BQ_DATASET_ID
-                  value: "cymbal_flights_dataset"
                 - name: DATASET_CONFIG_FILE
                   value: "/app/flights_dataset_config.json"
               envFromSecretRefs:
@@ -317,7 +316,7 @@ scenarios:
           dataSources:
             - name: bigquery-flights
               dsdfRef: bigquery-flights
-              managementPolicy: existing
+              managementPolicy: managed
             - name: spanner-graph-gcp
               dsdfRef: spanner-graph-gcp
               managementPolicy: managed

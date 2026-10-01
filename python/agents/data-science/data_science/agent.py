@@ -26,6 +26,10 @@ from datetime import date
 
 from google.adk.agents import LlmAgent
 from google.adk.agents.callback_context import CallbackContext
+from google.adk.apps.app import App
+from google.adk.plugins.save_files_as_artifacts_plugin import (
+    SaveFilesAsArtifactsPlugin,
+)
 
 # from google.adk.tools import load_artifacts
 from google.genai import types
@@ -223,3 +227,12 @@ _database_settings = init_database_settings(_dataset_config)
 
 # Fetch the root agent
 root_agent = get_root_agent()
+
+# The dev UI sends an upload as inline data, often named "inline-file".
+# load_xlsx only reads the artifact service, so the upload has to be saved
+# before the model runs.
+app = App(
+    name="data_science",
+    root_agent=root_agent,
+    plugins=[SaveFilesAsArtifactsPlugin()],
+)

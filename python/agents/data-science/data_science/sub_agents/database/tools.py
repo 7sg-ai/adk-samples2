@@ -28,7 +28,6 @@ from google.adk.tools import ToolContext
 from google.adk.tools.bigquery import BigQueryToolset
 from google.adk.tools.bigquery.config import BigQueryToolConfig, WriteMode
 from google.adk.tools.spanner.settings import SpannerToolSettings
-from google.adk.tools.spanner.spanner_credentials import SpannerCredentialsConfig
 from google.adk.tools.spanner.spanner_toolset import SpannerToolset
 from google.cloud import bigquery
 
@@ -52,9 +51,12 @@ _bq_toolset = BigQueryToolset(
         max_query_result_rows=1000,
     ),
 )
+# No credentials_config: an empty SpannerCredentialsConfig() fails validation
+# because it requires OAuth client_id/secret or an explicit Credentials object.
+# With the config omitted, the Spanner client uses Application Default
+# Credentials — the Cloud Run runtime service account.
 _spanner_toolset = SpannerToolset(
     tool_filter=["list_table_names", "get_table_schema", "execute_sql"],
-    credentials_config=SpannerCredentialsConfig(),
     spanner_tool_settings=SpannerToolSettings(max_executed_query_result_rows=1000),
 )
 

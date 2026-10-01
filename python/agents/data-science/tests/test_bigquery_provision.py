@@ -66,6 +66,76 @@ def test_script_entrypoint_emits_protocol_json_for_invalid_request():
     }
 
 
+def test_run_cli_maps_stdout_not_found_to_absent(monkeypatch):
+    """bq prints 'Not found' errors to stdout (stderr stays empty); rc is 2."""
+    module = load_module()
+    adapter = module.GcloudBigqueryAdapter()
+
+    def fake_run(args, check=False, capture_output=True, text=True):
+        return subprocess.CompletedProcess(
+            args,
+            2,
+            "BigQuery error in show operation: Not found: Dataset demo:cymbal_flights_dataset\n",
+            "",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert adapter.dataset_exists_for("demo-project", "cymbal_flights_dataset") is False
+
+
+def test_run_cli_maps_missing_table_stdout_error_to_absent(monkeypatch):
+    """A missing table's 'Not found' error also arrives on stdout only."""
+    module = load_module()
+    adapter = module.GcloudBigqueryAdapter()
+
+    def fake_run(args, check=False, capture_output=True, text=True):
+        return subprocess.CompletedProcess(
+            args,
+            2,
+            "BigQuery error in show operation: Not found: Table demo:ds.flight_history\n",
+            "",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert adapter.table_exists_for("demo-project", "cymbal_flights_dataset", "flight_history") is False
+
+
+def test_run_cli_still_maps_stderr_not_found_to_absent(monkeypatch):
+    """not-found errors on stderr keep mapping to not_found."""
+    module = load_module()
+    adapter = module.GcloudBigqueryAdapter()
+
+    def fake_run(args, check=False, capture_output=True, text=True):
+        return subprocess.CompletedProcess(
+            args,
+            1,
+            "",
+            "BigQuery error in show operation: Not found: Dataset demo:cymbal_flights_dataset\n",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert adapter.dataset_exists_for("demo-project", "cymbal_flights_dataset") is False
+
+
+def test_run_cli_real_failure_raises_bigquery_command_failed(monkeypatch):
+    """Genuine failures still raise bigquery_command_failed with the message."""
+    module = load_module()
+    adapter = module.GcloudBigqueryAdapter()
+
+    def fake_run(args, check=False, capture_output=True, text=True):
+        return subprocess.CompletedProcess(
+            args, 1, "", "BigQuery error in load operation: Access Denied\n"
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    with pytest.raises(module.ProvisioningError) as excinfo:
+        adapter.load_seed_table(
+            "demo-project", "us-central1", "cymbal_flights_dataset",
+            "flight_history", "flights_dataset/flight_history_table.csv", False,
+        )
+    assert excinfo.value.code == "bigquery_command_failed"
+
+
 def dataset_resource_id(payload):
     return f"projects/{payload['projectId']}/datasets/{payload['datasetId']}"
 

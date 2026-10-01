@@ -205,11 +205,19 @@ class GcloudBigqueryAdapter:
         if result.returncode == 0:
             return result
 
-        stderr = sanitize_error_message(result.stderr.strip())
-        if "not found" in result.stderr.lower() or "NOT_FOUND" in result.stderr:
-            raise ProvisioningError("not_found", stderr or "resource not found")
+        # bq writes some errors (e.g. "Not found") to stdout, so inspect both
+        # streams when deciding whether the failure means the resource is
+        # absent versus a real command failure.
+        combined_output = (result.stderr or "") + "\n" + (result.stdout or "")
+        message_source = result.stderr.strip() or result.stdout.strip()
+        lowered = combined_output.lower()
+        if "not found" in lowered or "not_found" in lowered:
+            raise ProvisioningError(
+                "not_found", sanitize_error_message(message_source) or "resource not found"
+            )
         raise ProvisioningError(
-            "bigquery_command_failed", stderr or f"{cli} command failed"
+            "bigquery_command_failed",
+            sanitize_error_message(message_source) or f"{cli} command failed",
         )
 
 

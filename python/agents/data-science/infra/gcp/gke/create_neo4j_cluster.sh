@@ -13,7 +13,7 @@ gcloud compute networks create "$NETWORK" --subnet-mode=custom
 gcloud compute networks subnets create "$SUBNET" \
   --network="$NETWORK" \
   --region="$REGION" \
-  --range=10.128.0.0/28 \
+  --range=10.128.0.0/24 \
   --secondary-range=pods=10.128.1.0/24 \
   --secondary-range=services=10.128.2.0/27
 gcloud container clusters create "$CLUSTER" \

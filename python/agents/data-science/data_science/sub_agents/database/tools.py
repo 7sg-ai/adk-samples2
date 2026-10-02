@@ -33,7 +33,12 @@ from google.cloud import bigquery
 
 from data_science.utils.utils import USER_AGENT
 
-from data_science.sub_agents.database import neo4j_store, settings, xlsx_loader
+from data_science.sub_agents.database import (
+    neo4j_loader,
+    neo4j_store,
+    settings,
+    xlsx_loader,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -238,13 +243,21 @@ async def load_xlsx(
             ),
         }
     try:
-        loaded = xlsx_loader.load_workbook(
-            workbook_bytes=part.inline_data.data,
-            workbook_name=artifact_name,
-            node_sheets=node_sheets,
-            edge_sheet=edge_sheet,
-            edge_sheets=edge_sheets,
-        )
+        if settings.graph_source() == "neo4j":
+            node_plans, edge_plans = xlsx_loader.plan_workbook(
+                part.inline_data.data, artifact_name
+            )
+            with neo4j_store.write_session() as session:
+                counts = neo4j_loader.load_graph(node_plans, edge_plans, session)
+            loaded = {"status": "SUCCESS", "source": "neo4j", **counts}
+        else:
+            loaded = xlsx_loader.load_workbook(
+                workbook_bytes=part.inline_data.data,
+                workbook_name=artifact_name,
+                node_sheets=node_sheets,
+                edge_sheet=edge_sheet,
+                edge_sheets=edge_sheets,
+            )
     except Exception as exc:  # noqa: BLE001
         logger.exception("load_xlsx failed")
         return {"status": "ERROR", "error_details": str(exc)}

@@ -13,7 +13,7 @@ def test_cluster_script_matches_locked_shape():
     assert '--network "$NETWORK"' in text
     assert '--subnetwork "$SUBNET"' in text
     assert '--subnet "$SUBNET"' in text
-    assert "--range=10.128.0.0/28" in text
+    assert "--range=10.128.0.0/24" in text
     assert "pods=10.128.1.0/24" in text
     assert "services=10.128.2.0/27" in text
     assert "--network default" not in text

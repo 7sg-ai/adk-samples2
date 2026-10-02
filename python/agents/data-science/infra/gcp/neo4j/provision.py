@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import re
 import secrets
@@ -15,6 +15,8 @@ from typing import Any, Protocol
 
 PROTOCOL_VERSION = "1"
 SECRET_ID = "neo4j-password"
+HELM_REPO_NAME = "neo4j"
+HELM_REPO_URL = "https://helm.neo4j.com/neo4j"
 CHART = "neo4j/neo4j"
 BOLT_PORT = 7687
 NEO4J_USER = "neo4j"
@@ -45,6 +47,8 @@ class Neo4jAdapter(Protocol):
     def install(self, plan: dict[str, Any]) -> None: ...
 
     def bolt_ready(self, plan: dict[str, Any]) -> bool: ...
+
+    def get_password(self, project_id: str, secret_id: str) -> str | None: ...
 
     def put_password(
         self, project_id: str, secret_id: str, password: str
@@ -88,7 +92,7 @@ class GcloudHelmAdapter:
         )
         if result.returncode == 0:
             return True
-        if _is_not_found(result):
+        if _is_gcloud_not_found(result):
             return False
         raise RuntimeError(_command_error("gcloud clusters describe", result))
 
@@ -99,6 +103,23 @@ class GcloudHelmAdapter:
                 values_path = Path(tmp) / "values.yaml"
                 # JSON is a subset of YAML, so helm reads this file directly.
                 values_path.write_text(json.dumps(plan["values"]), encoding="utf-8")
+                # Per-run Helm state so runs never share ~/.config/helm.
+                helm_env = {
+                    "HELM_REPOSITORY_CONFIG": str(Path(tmp) / "repositories.yaml"),
+                    "HELM_REPOSITORY_CACHE": str(Path(tmp) / "helm-cache"),
+                }
+                (Path(tmp) / "helm-cache").mkdir()
+                self._run(
+                    ["helm", "repo", "add", HELM_REPO_NAME, HELM_REPO_URL,
+                     "--force-update"],
+                    env=helm_env,
+                    label="helm repo add",
+                )
+                self._run(
+                    ["helm", "repo", "update", HELM_REPO_NAME],
+                    env=helm_env,
+                    label="helm repo update",
+                )
                 self._run(
                     [
                         "helm", "upgrade", "--install", plan["release_name"],
@@ -110,6 +131,7 @@ class GcloudHelmAdapter:
                     ],
                     secret=password,
                     label="helm upgrade",
+                    env=helm_env,
                 )
 
     def bolt_ready(self, plan: dict[str, Any]) -> bool:
@@ -131,13 +153,41 @@ class GcloudHelmAdapter:
                     return False
                 time.sleep(BOLT_READY_POLL_SECONDS)
 
+    def get_password(self, project_id: str, secret_id: str) -> str | None:
+        describe = self._run(
+            ["gcloud", "secrets", "describe", secret_id, "--project", project_id],
+            check=False,
+        )
+        if describe.returncode != 0:
+            if _is_gcloud_not_found(describe):
+                return None
+            raise RuntimeError(_command_error("gcloud secrets describe", describe))
+        versions = self._run(
+            [
+                "gcloud", "secrets", "versions", "list", secret_id,
+                "--project", project_id, "--filter", "state=ENABLED",
+                "--limit", "1", "--format", "value(name)",
+            ],
+            label="gcloud secrets versions list",
+        )
+        if not versions.stdout.strip():
+            return None
+        access = self._run(
+            [
+                "gcloud", "secrets", "versions", "access", "latest",
+                "--secret", secret_id, "--project", project_id,
+            ],
+            label="gcloud secrets versions access",
+        )
+        return access.stdout.rstrip("\r\n") or None
+
     def put_password(self, project_id: str, secret_id: str, password: str) -> None:
         describe = self._run(
             ["gcloud", "secrets", "describe", secret_id, "--project", project_id],
             check=False,
         )
         if describe.returncode != 0:
-            if not _is_not_found(describe):
+            if not _is_gcloud_not_found(describe):
                 raise RuntimeError(_command_error("gcloud secrets describe", describe))
             self._run(
                 [
@@ -159,7 +209,9 @@ class GcloudHelmAdapter:
         )
 
     def uninstall(self, plan: dict[str, Any]) -> None:
-        with self._kubeconfig(plan) as kubeconfig:
+        with self._kubeconfig(plan, allow_missing=True) as kubeconfig:
+            if kubeconfig is None:
+                return  # cluster already gone, so is the release
             result = self._run(
                 [
                     "helm", "uninstall", plan["release_name"],
@@ -167,13 +219,15 @@ class GcloudHelmAdapter:
                 ],
                 check=False,
             )
-        if result.returncode == 0 or _is_not_found(result):
+        if result.returncode == 0 or _is_helm_release_not_found(result):
             return
         raise RuntimeError(_command_error("helm uninstall", result))
 
     def delete_data_volume(self, plan: dict[str, Any]) -> None:
         # helm uninstall leaves the StatefulSet PVC (and its disk) behind.
-        with self._kubeconfig(plan) as kubeconfig:
+        with self._kubeconfig(plan, allow_missing=True) as kubeconfig:
+            if kubeconfig is None:
+                return  # cluster already gone, so is the volume
             result = self._run(
                 [
                     "kubectl", "delete", "pvc", f"data-{plan['release_name']}-0",
@@ -182,7 +236,9 @@ class GcloudHelmAdapter:
                 ],
                 check=False,
             )
-        if result.returncode == 0 or _is_not_found(result):
+        if result.returncode == 0 or _is_pvc_not_found(
+            result, f"data-{plan['release_name']}-0"
+        ):
             return
         raise RuntimeError(_command_error("kubectl delete pvc", result))
 
@@ -194,24 +250,35 @@ class GcloudHelmAdapter:
             ],
             check=False,
         )
-        if result.returncode == 0 or _is_not_found(result):
+        if result.returncode == 0 or _is_gcloud_not_found(result):
             return
         raise RuntimeError(_command_error("gcloud secrets delete", result))
 
     @contextmanager
-    def _kubeconfig(self, plan: Mapping[str, Any]) -> Iterator[str]:
+    def _kubeconfig(
+        self, plan: Mapping[str, Any], *, allow_missing: bool = False
+    ) -> Iterator[str | None]:
+        """Yield a temp kubeconfig, or None when allow_missing and the cluster is gone.
+
+        Auth and permission failures always raise.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             kubeconfig = str(Path(tmp) / "kubeconfig")
             Path(kubeconfig).touch()
-            self._run(
+            result = self._run(
                 [
                     "gcloud", "container", "clusters", "get-credentials",
                     plan["cluster_name"], "--zone", plan["zone"],
                     "--project", plan["project_id"],
                 ],
                 env={"KUBECONFIG": kubeconfig},
-                label="gcloud get-credentials",
+                check=False,
             )
+            if result.returncode != 0:
+                if allow_missing and _is_gcloud_not_found(result):
+                    yield None
+                    return
+                raise RuntimeError(_command_error("gcloud get-credentials", result))
             yield kubeconfig
 
     def _run(
@@ -248,9 +315,22 @@ def _command_error(label: str, result: subprocess.CompletedProcess[str]) -> str:
     return f"{label} failed (exit {result.returncode}): {detail}"
 
 
-def _is_not_found(result: subprocess.CompletedProcess[str]) -> bool:
-    text = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
-    return "not found" in text or "not_found" in text or "notfound" in text
+def _output_text(result: subprocess.CompletedProcess[str]) -> str:
+    return f"{result.stderr or ''}\n{result.stdout or ''}"
+
+
+def _is_gcloud_not_found(result: subprocess.CompletedProcess[str]) -> bool:
+    # gcloud reports a missing resource as NOT_FOUND or an HTTP 404 response.
+    return bool(re.search(r"NOT_FOUND|\b404\b", _output_text(result)))
+
+
+def _is_helm_release_not_found(result: subprocess.CompletedProcess[str]) -> bool:
+    return "release: not found" in _output_text(result).lower()
+
+
+def _is_pvc_not_found(result: subprocess.CompletedProcess[str], pvc_name: str) -> bool:
+    text = _output_text(result)
+    return "(NotFound)" in text and f'"{pvc_name}"' in text
 
 
 def _has_ingress_ip(services_json: str, load_balancer_ip: str) -> bool:
@@ -379,7 +459,12 @@ def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str,
                 f"GKE cluster {parsed.cluster_name} was not found",
             )
 
-        password = secrets.token_urlsafe(24)
+        # Reuse the stored Bolt password once it exists: the data volume keeps
+        # the first password, so rotating on a retry would lock the app out.
+        password = adapter.get_password(parsed.project_id, SECRET_ID)
+        stored_already = password is not None
+        if password is None:
+            password = secrets.token_urlsafe(24)
         plan: dict[str, Any] = {
             "project_id": parsed.project_id,
             "zone": parsed.zone,
@@ -392,7 +477,8 @@ def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str,
             "values": build_values(parsed),
             "password": password,
         }
-        adapter.put_password(parsed.project_id, SECRET_ID, password)
+        if not stored_already:
+            adapter.put_password(parsed.project_id, SECRET_ID, password)
         adapter.install(plan)
 
         if not adapter.bolt_ready(plan):

@@ -40,16 +40,22 @@ def return_instructions_database() -> str:
     - load_xlsx: the only write path. Persist an uploaded workbook as a
       Spanner Graph schema. On the first load, pass only artifact_name.
       Pass node_sheets and edge_sheets only when the user corrects the
-      inferred mapping. Reloading the same filename replaces that graph.
+      inferred mapping, and only when GRAPH_SOURCE is spanner. Reloading the
+      same filename replaces that graph. When GRAPH_SOURCE is neo4j, the load
+      uses the inferred mapping only: node_sheets and edge_sheets are ignored,
+      so mapping corrections cannot be applied.
 
     Workflow:
     1. If the user uploaded a workbook or asked to load one, call load_xlsx
        with only the artifact filename. Do not invent a mapping first.
        Tell the user the inferred nodes, id columns, edges, and confidence.
        If confidence is low, say what was uncertain and that they can correct it.
-    2. If the user corrects the mapping, call load_xlsx again with the same
-       artifact filename plus the corrected node_sheets and edge_sheets.
-       That replaces the previous graph for that file.
+    2. If the user corrects the mapping and GRAPH_SOURCE is spanner, call
+       load_xlsx again with the same artifact filename plus the corrected
+       node_sheets and edge_sheets. That replaces the previous graph for that
+       file. If GRAPH_SOURCE is neo4j, do not pass corrections: tell the user
+       the Neo4j load uses the inferred mapping only and corrections are not
+       applied.
     3. To answer a data question, call list_sources and get_schema first.
     4. Write one read-only query and call query. Put a LIMIT on row-returning
        queries unless the user asked for an aggregate.

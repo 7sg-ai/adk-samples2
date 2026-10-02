@@ -405,10 +405,8 @@ scenarios:
               managementPolicy: managed
     - name: private-ntt
       description: >
-        App, Postgres, and Neo4j run in ntt-tenant-a on the NTT prep cluster.
-        Gemini 2.5 Flash stays on Vertex. The deploy loads the Acme workbook
-        from sample_data into Postgres and Neo4j, and the app queries those
-        stores.
+        The app and Neo4j run in ntt-tenant-a. BigQuery workbook_data stays
+        in GCP. Gemini 2.5 Flash stays on Vertex.
       topology:
         components:
           - name: data-science
@@ -436,22 +434,17 @@ scenarios:
                   value: "true"
                 - name: GOOGLE_CLOUD_LOCATION
                   value: us-central1
+                - name: BQ_DATASET_ID
+                  value: workbook_data
                 - name: DATASET_CONFIG_FILE
-                  value: /app/private_ntt_dataset_config.json
-                - name: POSTGRES_HOST
-                  value: postgres-acme.ntt-tenant-a.svc
-                - name: POSTGRES_PORT
-                  value: "5432"
-                - name: POSTGRES_DB
-                  value: acme
-                - name: POSTGRES_USER
-                  value: acme
+                  value: /app/flights_dataset_config.json
+                - name: GRAPH_SOURCE
+                  value: neo4j
                 - name: NEO4J_URI
                   value: bolt://neo4j.ntt-tenant-a.svc:7687
               envFromSecretRefs:
                 - gcp-secret-manager-project-id
                 - gcp-sa-key-json
-                - postgres-acme-password
                 - neo4j-password
               resources:
                 cpu: "1"
@@ -468,35 +461,6 @@ scenarios:
                 exposure: internal
                 protocol: http
                 path: /
-          - name: postgres-acme
-            role: custom
-            runtime:
-              platform: kubernetes
-              namespace: ntt-tenant-a
-              regions:
-                - ntt-lab
-              image:
-                repository: postgres
-                tag: "16"
-              env:
-                - name: POSTGRES_DB
-                  value: acme
-                - name: POSTGRES_USER
-                  value: acme
-              envFromSecretRefs:
-                - postgres-acme-password
-              resources:
-                cpu: "500m"
-                memory: 1Gi
-              autoscaling:
-                minReplicas: 1
-                maxReplicas: 1
-                policy:
-                  metric: cpu
-                  target: 70
-              persistence:
-                storageClass: longhorn
-                size: 20Gi
           - name: neo4j
             role: custom
             runtime:
@@ -529,11 +493,9 @@ scenarios:
             tdfRef: ntt-private
           components:
             - data-science
-            - postgres-acme
             - neo4j
           dataSources:
             - bigquery-workbook
-            - postgres-acme
             - neo4j-graph-ntt
           sla:
             targetMs: 5000

@@ -7,6 +7,8 @@ class FakeNeo4jAdapter:
     def __init__(self):
         self.installed = None
         self.stored = None
+        self.uninstalled = None
+        self.deleted_secret = None
 
     def cluster_exists(self, project_id, zone, cluster_name):
         return True
@@ -21,7 +23,10 @@ class FakeNeo4jAdapter:
         self.stored = (project_id, secret_id, password)
 
     def uninstall(self, plan):
-        raise AssertionError("present must not uninstall")
+        self.uninstalled = plan
+
+    def delete_password(self, project_id, secret_id):
+        self.deleted_secret = secret_id
 
 
 def _request(**overrides):
@@ -90,3 +95,14 @@ def test_install_failure_does_not_leak_password():
     assert adapter.stored[2]
     assert adapter.stored[2] not in str(payload)
     assert adapter.stored[2] not in json.dumps(payload)
+
+
+def test_absent_uninstalls_release_and_keeps_cluster():
+    adapter = FakeNeo4jAdapter()
+    payload = provision(_request(desiredState="absent"), adapter)
+    assert payload["status"] == "succeeded"
+    assert payload["environment"] == {}
+    assert adapter.uninstalled["release_name"] == "neo4j"
+    assert adapter.uninstalled["namespace"] == "neo4j"
+    assert adapter.deleted_secret == "neo4j-password"
+    assert all(item["type"] != "container.googleapis.com/cluster" for item in payload["resources"])

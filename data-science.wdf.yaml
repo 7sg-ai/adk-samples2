@@ -133,20 +133,26 @@ secrets:
       externalRef:
         provider: ntt-vault
         key: yugabyte-ntt-password
+    - name: gcp-secret-manager-project-id
+      injectAs: env
+      envVar: GOOGLE_CLOUD_PROJECT
+      source_type: internal_value
+      internalRef: gcp-secret-manager-project-id
     - name: postgres-acme-password
       injectAs: env
       envVar: POSTGRES_PASSWORD
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: postgres-acme-password
+      source_type: internal_value
+      internalRef: postgres-acme-password
     - name: neo4j-password
       injectAs: env
       envVar: NEO4J_PASSWORD
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: neo4j-password
+      source_type: internal_value
+      internalRef: neo4j-password
+    - name: gcp-sa-key-json
+      injectAs: file
+      filePath: /credentials/deploy-sa.json
+      source_type: internal_value
+      internalRef: gcp-sa-key-json
 
 dataSources:
   inputs:
@@ -352,6 +358,8 @@ scenarios:
                   value: gemini-2.5-flash
                 - name: SERVE_WEB_INTERFACE
                   value: "true"
+                - name: GOOGLE_CLOUD_LOCATION
+                  value: us-central1
                 - name: BQ_DATASET_ID
                   value: workbook_data
                 - name: DATASET_CONFIG_FILE
@@ -367,11 +375,8 @@ scenarios:
                 - name: NEO4J_URI
                   value: bolt://neo4j.ntt-tenant-a.svc:7687
               envFromSecretRefs:
-                - google-cloud-project
-                - google-cloud-location
-                - deploy-service-account-key
-                - bq-data-project-id
-                - bq-compute-project-id
+                - gcp-secret-manager-project-id
+                - gcp-sa-key-json
                 - postgres-acme-password
                 - neo4j-password
               resources:

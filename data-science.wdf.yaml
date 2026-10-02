@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.4.1"
+  version: "0.4.2"
 
 workload:
   source:
@@ -148,6 +148,13 @@ secrets:
       envVar: NEO4J_PASSWORD
       source_type: internal_value
       internalRef: neo4j-password
+    - name: neo4j-password-gcp
+      injectAs: env
+      envVar: NEO4J_PASSWORD
+      externalRef:
+        provider: gcp-secret-manager
+        vaultRef: gcp-main
+        key: neo4j-password
     - name: gcp-sa-key-json
       injectAs: file
       filePath: /credentials/deploy-sa.json
@@ -365,7 +372,7 @@ scenarios:
                 - google-cloud-location
                 - bq-data-project-id
                 - bq-compute-project-id
-                - neo4j-password
+                - neo4j-password-gcp
               resources:
                 cpu: "2"
                 memory: 2Gi

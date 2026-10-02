@@ -44,8 +44,8 @@ class _DriverSession:
         self._driver = driver
         self._session = driver.session()
 
-    def run(self, statement: str):
-        return self._session.run(statement)
+    def run(self, statement: str, **params):
+        return self._session.run(statement, **params)
 
     def __enter__(self):
         return self
@@ -56,6 +56,11 @@ class _DriverSession:
         finally:
             self._driver.close()
         return False
+
+
+def write_session():
+    """Open a real driver session for loads. The read guard does not apply."""
+    return _default_session()
 
 
 def run_read(

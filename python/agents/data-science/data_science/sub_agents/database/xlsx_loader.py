@@ -1160,6 +1160,26 @@ def _normalize_edges(edge_sheet, edge_sheets) -> list[dict]:
     return []
 
 
+def plan_workbook(
+    workbook_bytes: bytes, workbook_name: str
+) -> tuple[list[dict], list[dict]]:
+    """Infer node and edge plans for a workbook without touching any database."""
+    sheets = read_sheets(workbook_bytes)
+    name = graph_name_for(workbook_name)
+    analysis = analyze_workbook(workbook_bytes)
+    node_sheets = [
+        {"sheet": spec["sheet"], "id_column": spec["id_column"]}
+        for spec in analysis["node_sheets"]
+    ]
+    if not node_sheets:
+        raise ValueError("At least one node sheet mapping is required.")
+    node_plans = [_node_plan(sheets, spec, name) for spec in node_sheets]
+    edge_plans = [
+        _edge_plan(sheets, spec, node_plans, name) for spec in analysis["edge_sheets"]
+    ]
+    return node_plans, edge_plans
+
+
 def _load_graph(
     sheets: dict[str, pd.DataFrame],
     workbook_name: str,

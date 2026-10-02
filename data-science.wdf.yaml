@@ -326,6 +326,76 @@ scenarios:
             - name: spanner-graph-gcp
               dsdfRef: spanner-graph-gcp
               managementPolicy: managed
+    - name: native-neo4j
+      description: >
+        GCP-native deployment that selects Neo4j as the graph source. The
+        application runs on Cloud Run and reaches a managed Neo4j on GKE over
+        Bolt through a Direct VPC egress interface on the default network.
+        BigQuery stays Sherpa-managed. The model is served on Vertex AI
+        (Gemini 2.5 Flash for the root agent; sub-agents inherit or override
+        via environment). No response-time target on this scenario.
+      topology:
+        components:
+          - name: data-science
+            role: api
+            runtime:
+              platform: serverless
+              regions:
+                - us-central1
+              image:
+                repository: data-science
+                tag: latest
+              env:
+                - name: GOOGLE_GENAI_USE_VERTEXAI
+                  value: "true"
+                - name: ROOT_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: ANALYTICS_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: DATABASE_AGENT_MODEL
+                  value: "gemini-2.5-flash"
+                - name: SERVE_WEB_INTERFACE
+                  value: "true"
+                - name: DATASET_CONFIG_FILE
+                  value: "/app/flights_dataset_config.json"
+                - name: GRAPH_SOURCE
+                  value: neo4j
+              envFromSecretRefs:
+                - google-cloud-project
+                - google-cloud-location
+                - bq-data-project-id
+                - bq-compute-project-id
+                - neo4j-password
+              resources:
+                cpu: "2"
+                memory: 2Gi
+              autoscaling:
+                minReplicas: 1
+                maxReplicas: 5
+                policy:
+                  metric: cpu
+                  target: 70
+            endpoints:
+              - name: http
+                port: 8080
+                exposure: public
+                protocol: http
+                path: /
+      deployments:
+        - name: data-science-gcp-neo4j
+          target:
+            provider: gcp
+            region: us-central1
+            tdfRef: gcp-native
+          components:
+            - data-science
+          dataSources:
+            - name: bigquery-flights
+              dsdfRef: bigquery-flights
+              managementPolicy: managed
+            - name: neo4j-graph-gcp
+              dsdfRef: neo4j-graph-gcp
+              managementPolicy: managed
     - name: private-ntt
       description: >
         App, Postgres, and Neo4j run in ntt-tenant-a on the NTT prep cluster.

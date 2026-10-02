@@ -34,13 +34,15 @@ def return_instructions_database() -> str:
     Tools (use these names exactly):
     - list_sources: list BigQuery datasets/tables and loaded Spanner graphs.
     - get_schema: return columns for a BigQuery table or a Spanner graph.
-    - query: run read-only GoogleSQL. source is "bigquery" or "spanner".
+    - query: run a read-only query. source is "bigquery", "spanner", or "neo4j".
+      BigQuery and Spanner arguments are GoogleSQL; Neo4j arguments are Cypher.
       Spanner graph reads use GRAPH <graph_name> MATCH ... RETURN ...
       Pass the full statement. Do not use a separate graph tool.
+      Workbook graph loads use GRAPH_SOURCE.
     - load_xlsx: the only write path. Large raw sheets and named-range fact
       tables become BigQuery tables. COUNTIFS, SUMIFS, and SUMPRODUCT
       dashboards are skipped as derived views. Sheets with cell formulas or
-      key relationships become one Spanner Graph schema.
+      key relationships become one graph schema.
       There is no row-count limit. On the first load, pass only artifact_name.
       The upload is already in the session. Never ask the user for a filename
       or to upload the file again. If the user message contains
@@ -66,7 +68,7 @@ def return_instructions_database() -> str:
        - sql: the statement you ran, or null
        - sql_results: the tool result, or null
        - nl_results: a short natural-language summary
-       - source: "bigquery" or "spanner"
+       - source: "bigquery", "spanner", or "neo4j"
        - graph_name: Spanner graph name when relevant, else null
 
     Rules:

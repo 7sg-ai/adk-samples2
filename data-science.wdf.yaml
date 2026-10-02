@@ -406,10 +406,9 @@ scenarios:
     - name: private-ntt
       description: >
         App, Postgres, and Neo4j run in ntt-tenant-a on the NTT prep cluster.
-        The model stays Gemini 2.5 Flash on Vertex. BigQuery workbook_data
-        stays in GCP. A Job loads the Acme workbook from sample_data into
-        Postgres. Neo4j is deployed in the namespace and is not selected by
-        the dataset config yet.
+        Gemini 2.5 Flash stays on Vertex. The deploy loads the Acme workbook
+        from sample_data into Postgres and Neo4j, and the app queries those
+        stores.
       topology:
         components:
           - name: data-science
@@ -437,10 +436,8 @@ scenarios:
                   value: "true"
                 - name: GOOGLE_CLOUD_LOCATION
                   value: us-central1
-                - name: BQ_DATASET_ID
-                  value: workbook_data
                 - name: DATASET_CONFIG_FILE
-                  value: /app/flights_dataset_config.json
+                  value: /app/private_ntt_dataset_config.json
                 - name: POSTGRES_HOST
                   value: postgres-acme.ntt-tenant-a.svc
                 - name: POSTGRES_PORT

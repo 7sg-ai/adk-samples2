@@ -34,6 +34,8 @@ from google.cloud import bigquery
 from data_science.utils.utils import USER_AGENT
 
 from data_science.sub_agents.database import (
+    cluster_store,
+    dataset_config,
     neo4j_loader,
     neo4j_store,
     settings,
@@ -79,6 +81,21 @@ def _store(tool_context: ToolContext, source: str, payload: Any) -> None:
     tool_context.state["query_result_source"] = source
 
 async def list_sources(tool_context: ToolContext) -> dict:
+    """List the sources selected by DATASET_CONFIG_FILE.
+
+    BigQuery and Spanner when that file is the flights config. Postgres and
+    Neo4j when that file is the private-ntt config.
+    """
+    if dataset_config.uses_cluster_stores():
+        try:
+            return cluster_store.list_sources()
+        except Exception as exc:  # noqa: BLE001 - surface config errors to the model
+            logger.exception("cluster list_sources failed")
+            return {"status": "ERROR", "error_details": str(exc)}
+    return await _cloud_list_sources(tool_context)
+
+
+async def _cloud_list_sources(tool_context: ToolContext) -> dict:
     """List BigQuery datasets/tables and Spanner graphs loaded from workbooks.
 
     Returns:
@@ -142,6 +159,17 @@ async def get_schema(
         Schema dict. Spanner schema includes inferred or declared nodes and edges.
     """
     source = source.strip().lower()
+    if dataset_config.uses_cluster_stores():
+        if source not in {"postgres", "neo4j"}:
+            return {
+                "status": "ERROR",
+                "error_details": "This deployment answers from postgres or neo4j.",
+            }
+        try:
+            return cluster_store.get_schema(source, name)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("cluster get_schema failed")
+            return {"status": "ERROR", "error_details": str(exc)}
     if source == "bigquery":
         info = await _tool(_bq_toolset, "get_table_info")
         return await info.run_async(
@@ -173,6 +201,19 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
         for the analytics agent. There is no separate result-copy callback.
     """
     source = source.strip().lower()
+    if dataset_config.uses_cluster_stores():
+        if source not in {"postgres", "neo4j"}:
+            return {
+                "status": "ERROR",
+                "error_details": "This deployment answers from postgres or neo4j.",
+            }
+        try:
+            result = cluster_store.query_source(source, sql)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("cluster query failed")
+            return {"status": "ERROR", "error_details": str(exc)}
+        _store(tool_context, source, result.get("rows"))
+        return result
     statement = sql.strip() if source == "neo4j" else guard_sql(sql)
     if source == "bigquery":
         project = settings.bq_project_id()
@@ -233,6 +274,14 @@ async def load_xlsx(
     Returns:
         graph_name, tables, row counts, mapping, and confidence.
     """
+    if dataset_config.uses_cluster_stores():
+        return {
+            "status": "ERROR",
+            "error_details": (
+                "The Acme workbook is already loaded into Postgres and Neo4j. "
+                "Query those sources."
+            ),
+        }
     part = await tool_context.load_artifact(artifact_name)
     if part is None or part.inline_data is None or not part.inline_data.data:
         return {

@@ -1,0 +1,14 @@
+{
+  "datasets": [
+    {
+      "type": "postgres",
+      "name": "acme_workbook",
+      "description": "Acme Corp financial model from sample_data/Acme Corp Financial Model.xlsx, loaded into Postgres in this cluster. Use source postgres. Tables: sheet_fields(sheet, label, value) for loan terms and scalar outputs; statement_lines(sheet, line_item, period, amount) for year columns such as 2025A and 2026E on Income Statement, Balance Sheet, Cash Flow, DCF, Summary, Assumptions, Debt Schedule, and Checks; debt_payments(period, payment_date, year, beginning_balance, payment, interest, principal, ending_balance) for each monthly term-loan payment; dcf_sensitivity(table_name, wacc, axis_value, share_price) for the share-price grids already calculated in the workbook; workbook_cells(sheet, row_number, col_number, value) for every stored cell. Amounts are text. Cast them to numeric when you aggregate. These are the workbook's stored values, including the Base case and the sensitivity grids."
+    },
+    {
+      "type": "neo4j",
+      "name": "acme_graph",
+      "description": "The same Acme workbook as a graph. Use source neo4j and read-only Cypher. Labels: Sheet, Field, StatementLine, DebtPayment, DcfSensitivity. Relationships: (Sheet)-[:HAS_FIELD]->(Field), (Sheet)-[:HAS_LINE]->(StatementLine), (Sheet)-[:HAS_PAYMENT]->(DebtPayment), (Sheet)-[:HAS_SENSITIVITY]->(DcfSensitivity). Field has sheet, label, value. StatementLine has sheet, line_item, period, amount. DebtPayment has period, payment_date, year, beginning_balance, payment, interest, principal, ending_balance. DcfSensitivity has table_name, wacc, axis_value, share_price."
+    }
+  ]
+}

@@ -79,7 +79,7 @@ _logger = logging.getLogger(__name__)
 # Initialize module-level config variables
 _dataset_config = {}
 _database_settings = {}
-_supported_dataset_types = ["bigquery", "alloydb", "spanner"]
+_supported_dataset_types = ["bigquery", "alloydb", "spanner", "postgres", "neo4j"]
 _required_dataset_config_params = ["name", "description"]
 
 
@@ -133,6 +133,22 @@ def get_database_settings(db_type: str) -> dict:
                 f"{os.getenv('MCP_TOOLBOX_HOST', 'localhost')}:"
                 f"{os.getenv('MCP_TOOLBOX_PORT', '5000')}, "
                 f"toolset {os.getenv('ALLOYDB_TOOLSET', 'postgres-database-tools')}."
+            )
+        }
+    if db_type == "postgres":
+        return {
+            "schema": (
+                "Postgres tables: sheet_fields, statement_lines, debt_payments, "
+                "dcf_sensitivity, workbook_cells. "
+                f"Host: {os.getenv('POSTGRES_HOST', '')}."
+            )
+        }
+    if db_type == "neo4j":
+        return {
+            "schema": (
+                "Neo4j labels: Sheet, Field, StatementLine, DebtPayment, "
+                "DcfSensitivity. "
+                f"URI: {os.getenv('NEO4J_URI', '')}."
             )
         }
     return {

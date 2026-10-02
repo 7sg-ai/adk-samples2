@@ -16,6 +16,7 @@
 
 import os
 import re
+from typing import Literal
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -44,7 +45,7 @@ def spanner_database_id() -> str:
     return env("SPANNER_DATABASE_ID")
 
 
-def graph_source() -> str:
+def graph_source() -> Literal["spanner", "neo4j"]:
     value = env("GRAPH_SOURCE", "spanner").lower()
     if value not in {"spanner", "neo4j"}:
         raise ValueError("GRAPH_SOURCE must be spanner or neo4j.")

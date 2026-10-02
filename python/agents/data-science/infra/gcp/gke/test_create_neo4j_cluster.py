@@ -8,8 +8,14 @@ def test_cluster_script_matches_locked_shape():
     assert "--machine-type e2-standard-2" in text
     assert "--num-nodes 1" in text
     assert "--enable-ip-alias" in text
-    assert "--network default" in text
-    assert "--subnetwork default" in text
+    assert "--network data-science-neo4j" in text
+    assert "--subnetwork data-science-neo4j" in text
+    assert "--subnet data-science-neo4j" in text
+    assert "--range=10.128.0.0/28" in text
+    assert "pods=10.128.1.0/24" in text
+    assert "services=10.128.2.0/27" in text
+    assert "--network default" not in text
+    assert "--subnetwork default" not in text
     assert "neo4j-bolt-ip" in text
     assert "SHARED_LOADBALANCER_VIP" in text
     assert "--vpc-egress private-ranges-only" in text

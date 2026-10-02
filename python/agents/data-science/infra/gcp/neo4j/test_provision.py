@@ -1,4 +1,6 @@
-﻿from infra.gcp.neo4j.provision import provision
+﻿import json
+
+from infra.gcp.neo4j.provision import provision
 
 
 class FakeNeo4jAdapter:
@@ -63,3 +65,28 @@ def test_present_installs_internal_neo4j_and_hides_password():
     assert adapter.stored[0] == "gen-lang-client-0373235205"
     assert plan["values"]["neo4j"]["edition"] == "community"
     assert "password" not in str(plan["values"])
+
+
+def test_storage_gb_other_than_20_fails_without_install():
+    adapter = FakeNeo4jAdapter()
+    payload = provision(_request(storageGb=10), adapter)
+    assert payload["status"] == "failed"
+    assert payload["error"]["code"] == "invalid_request"
+    assert adapter.installed is None
+    assert adapter.stored is None
+
+
+def test_install_failure_does_not_leak_password():
+    adapter = FakeNeo4jAdapter()
+
+    def failing_install(plan):
+        raise RuntimeError(
+            f"helm failed: --set neo4j.password={plan['password']} bad release"
+        )
+
+    adapter.install = failing_install
+    payload = provision(_request(), adapter)
+    assert payload["status"] == "failed"
+    assert adapter.stored[2]
+    assert adapter.stored[2] not in str(payload)
+    assert adapter.stored[2] not in json.dumps(payload)

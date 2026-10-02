@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 import sys
 from collections.abc import Mapping
@@ -10,6 +11,7 @@ SECRET_ID = "neo4j-password"
 CHART = "neo4j/neo4j"
 BOLT_PORT = 7687
 NEO4J_USER = "neo4j"
+STORAGE_GB = 20
 
 
 @dataclass(frozen=True)
@@ -82,8 +84,8 @@ def parse_request(payload: Mapping[str, object]) -> ProvisionRequest:
     storage_gb = payload.get("storageGb")
     if isinstance(storage_gb, bool) or not isinstance(storage_gb, int):
         raise ValueError("storageGb must be an integer")
-    if storage_gb < 1:
-        raise ValueError("storageGb must be positive")
+    if storage_gb != STORAGE_GB:
+        raise ValueError(f"storageGb must be {STORAGE_GB}")
 
     return ProvisionRequest(
         protocol_version=protocol_version,
@@ -130,6 +132,7 @@ def build_values(request: ProvisionRequest) -> dict[str, Any]:
 
 def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str, object]:
     protocol_version = PROTOCOL_VERSION
+    password: str | None = None
     try:
         parsed = parse_request(request)
         protocol_version = parsed.protocol_version
@@ -184,7 +187,7 @@ def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str,
             },
         }
     except Exception as exc:
-        return _failure_result(protocol_version, exc)
+        return _failure_result(protocol_version, exc, password)
 
 
 def main() -> int:
@@ -198,13 +201,15 @@ def main() -> int:
     return 0 if result["status"] == "succeeded" else 1
 
 
-def _failure_result(protocol_version: str, exc: Exception) -> dict[str, object]:
+def _failure_result(
+    protocol_version: str, exc: Exception, password: str | None = None
+) -> dict[str, object]:
     code = "provider_error"
     if isinstance(exc, ProvisioningError):
         code = exc.code
-        message = exc.message
+        message = sanitize_error_message(exc.message, password)
     else:
-        message = str(exc) or "provider operation failed"
+        message = sanitize_error_message(str(exc), password)
         if isinstance(exc, (ValueError, json.JSONDecodeError, TypeError)):
             code = "invalid_request"
     return {
@@ -212,8 +217,26 @@ def _failure_result(protocol_version: str, exc: Exception) -> dict[str, object]:
         "status": "failed",
         "resources": [],
         "environment": {},
-        "error": {"code": code, "message": message},
+        "error": {
+            "code": code,
+            "message": message or "provider operation failed",
+        },
     }
+
+
+def sanitize_error_message(message: str, password: str | None = None) -> str:
+    sanitized = message
+    if password:
+        sanitized = sanitized.replace(password, "[redacted]")
+    redactions = [
+        (r"Bearer\s+[A-Za-z0-9._\-]+", "Bearer [redacted]"),
+        (r"(?i)(authorization\s*:\s*)(.+)", r"\1[redacted]"),
+        (r"(?i)(access[_-]?token\s*=?\s*)([^,\s]+)", r"\1[redacted]"),
+        (r"(?i)(password\s*[=:]?\s*)([^,\s]+)", r"\1[redacted]"),
+    ]
+    for pattern, replacement in redactions:
+        sanitized = re.sub(pattern, replacement, sanitized)
+    return sanitized.strip()
 
 
 def _resource(resource_type: str, resource_id: str) -> dict[str, str]:

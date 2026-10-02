@@ -9,6 +9,7 @@ class FakeNeo4jAdapter:
         self.stored = None
         self.uninstalled = None
         self.deleted_secret = None
+        self.deleted_volume = None
 
     def cluster_exists(self, project_id, zone, cluster_name):
         return True
@@ -24,6 +25,9 @@ class FakeNeo4jAdapter:
 
     def uninstall(self, plan):
         self.uninstalled = plan
+
+    def delete_data_volume(self, plan):
+        self.deleted_volume = (plan["namespace"], f"data-{plan['release_name']}-0")
 
     def delete_password(self, project_id, secret_id):
         self.deleted_secret = secret_id
@@ -106,3 +110,15 @@ def test_absent_uninstalls_release_and_keeps_cluster():
     assert adapter.uninstalled["namespace"] == "neo4j"
     assert adapter.deleted_secret == "neo4j-password"
     assert all(item["type"] != "container.googleapis.com/cluster" for item in payload["resources"])
+
+
+def test_absent_deletes_disk_and_reports_forwarding_rule_without_cluster():
+    adapter = FakeNeo4jAdapter()
+    payload = provision(_request(desiredState="absent"), adapter)
+    assert payload["status"] == "succeeded"
+    assert adapter.deleted_volume == ("neo4j", "data-neo4j-0")
+    resources = {(item["type"], item["id"]): item for item in payload["resources"]}
+    assert resources[("gce_persistent_disk", "data-neo4j-0")]["action"] == "deleted"
+    assert resources[("internal_forwarding_rule", "neo4j/neo4j")]["ownership"] == "run_owned"
+    assert all(item["type"] != "container.googleapis.com/cluster" for item in payload["resources"])
+    assert all(item["action"] == "deleted" and item["ownership"] == "run_owned" for item in payload["resources"])

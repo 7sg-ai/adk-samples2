@@ -52,6 +52,8 @@ class Neo4jAdapter(Protocol):
 
     def uninstall(self, plan: dict[str, Any]) -> None: ...
 
+    def delete_data_volume(self, plan: dict[str, Any]) -> None: ...
+
     def delete_password(self, project_id: str, secret_id: str) -> None: ...
 
 
@@ -168,6 +170,21 @@ class GcloudHelmAdapter:
         if result.returncode == 0 or _is_not_found(result):
             return
         raise RuntimeError(_command_error("helm uninstall", result))
+
+    def delete_data_volume(self, plan: dict[str, Any]) -> None:
+        # helm uninstall leaves the StatefulSet PVC (and its disk) behind.
+        with self._kubeconfig(plan) as kubeconfig:
+            result = self._run(
+                [
+                    "kubectl", "delete", "pvc", f"data-{plan['release_name']}-0",
+                    "--namespace", plan["namespace"],
+                    "--ignore-not-found", "--kubeconfig", kubeconfig,
+                ],
+                check=False,
+            )
+        if result.returncode == 0 or _is_not_found(result):
+            return
+        raise RuntimeError(_command_error("kubectl delete pvc", result))
 
     def delete_password(self, project_id: str, secret_id: str) -> None:
         result = self._run(
@@ -317,15 +334,18 @@ def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str,
         if parsed.desired_state == "absent":
             # The GKE cluster is shared and one-time; absent only removes the
             # Helm release and its password secret.
-            adapter.uninstall(
-                {
-                    "project_id": parsed.project_id,
-                    "zone": parsed.zone,
-                    "cluster_name": parsed.cluster_name,
-                    "namespace": parsed.namespace,
-                    "release_name": parsed.release_name,
-                }
-            )
+            teardown_plan = {
+                "project_id": parsed.project_id,
+                "zone": parsed.zone,
+                "cluster_name": parsed.cluster_name,
+                "namespace": parsed.namespace,
+                "release_name": parsed.release_name,
+            }
+            # Uninstall deletes the LoadBalancer Service, which removes the
+            # internal forwarding rule. The PVC (and its disk) must be deleted
+            # explicitly afterwards.
+            adapter.uninstall(teardown_plan)
+            adapter.delete_data_volume(teardown_plan)
             adapter.delete_password(parsed.project_id, SECRET_ID)
             return {
                 "protocolVersion": parsed.protocol_version,
@@ -333,6 +353,16 @@ def provision(request: Mapping[str, object], adapter: Neo4jAdapter) -> dict[str,
                 "resources": [
                     _resource(
                         "neo4j_helm_release",
+                        f"{parsed.namespace}/{parsed.release_name}",
+                        "deleted",
+                    ),
+                    _resource(
+                        "gce_persistent_disk",
+                        f"data-{parsed.release_name}-0",
+                        "deleted",
+                    ),
+                    _resource(
+                        "internal_forwarding_rule",
                         f"{parsed.namespace}/{parsed.release_name}",
                         "deleted",
                     ),

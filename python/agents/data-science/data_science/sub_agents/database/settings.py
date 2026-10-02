@@ -44,6 +44,21 @@ def spanner_database_id() -> str:
     return env("SPANNER_DATABASE_ID")
 
 
+def graph_source() -> str:
+    value = env("GRAPH_SOURCE", "spanner").lower()
+    if value not in {"spanner", "neo4j"}:
+        raise ValueError("GRAPH_SOURCE must be spanner or neo4j.")
+    return value
+
+
+def neo4j_uri() -> str:
+    return env("NEO4J_URI")
+
+
+def neo4j_user() -> str:
+    return env("NEO4J_USER", "neo4j")
+
+
 def require_ident(value: str, label: str) -> str:
     """Reject anything that is not a bare SQL identifier."""
     if not value or not _IDENT.match(value):

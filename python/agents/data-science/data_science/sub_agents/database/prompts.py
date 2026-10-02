@@ -32,9 +32,11 @@ def return_instructions_database() -> str:
     Tools (use these names exactly):
     - list_sources: list BigQuery datasets/tables and loaded Spanner graphs.
     - get_schema: return columns for a BigQuery table or a Spanner graph.
-    - query: run read-only GoogleSQL. source is "bigquery" or "spanner".
+    - query: run a read-only query. source is "bigquery", "spanner", or "neo4j".
+      BigQuery and Spanner arguments are GoogleSQL; Neo4j arguments are Cypher.
       Spanner graph reads use GRAPH <graph_name> MATCH ... RETURN ...
       Pass the full statement. Do not use a separate graph tool.
+      Workbook graph loads use GRAPH_SOURCE.
     - load_xlsx: the only write path. Persist an uploaded workbook as a
       Spanner Graph schema. On the first load, pass only artifact_name.
       Pass node_sheets and edge_sheets only when the user corrects the
@@ -55,7 +57,7 @@ def return_instructions_database() -> str:
        - sql: the statement you ran, or null
        - sql_results: the tool result, or null
        - nl_results: a short natural-language summary
-       - source: "bigquery" or "spanner"
+       - source: "bigquery", "spanner", or "neo4j"
        - graph_name: Spanner graph name when relevant, else null
 
     Rules:

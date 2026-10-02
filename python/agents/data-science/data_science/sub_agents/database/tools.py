@@ -33,7 +33,7 @@ from google.cloud import bigquery
 
 from data_science.utils.utils import USER_AGENT
 
-from data_science.sub_agents.database import settings, xlsx_loader
+from data_science.sub_agents.database import neo4j_store, settings, xlsx_loader
 
 logger = logging.getLogger(__name__)
 
@@ -159,15 +159,16 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
     """Run a read-only query and store rows in query_result.
 
     Args:
-        source: "bigquery" or "spanner".
-        sql: GoogleSQL. Spanner graph reads start with GRAPH <graph_name>.
+        source: "bigquery", "spanner", or "neo4j".
+        sql: GoogleSQL, or Cypher for neo4j. Spanner graph reads start with
+            GRAPH <graph_name>.
 
     Returns:
         The tool result. Rows are also written to session state query_result
         for the analytics agent. There is no separate result-copy callback.
     """
     source = source.strip().lower()
-    statement = guard_sql(sql)
+    statement = sql.strip() if source == "neo4j" else guard_sql(sql)
     if source == "bigquery":
         project = settings.bq_project_id()
         client = bigquery.Client(
@@ -191,6 +192,9 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
             },
             tool_context=tool_context,
         )
+    elif source == "neo4j":
+        rows = neo4j_store.run_read(statement)
+        result = {"rows": rows}
     else:
         return {"status": "ERROR", "error_details": f"Unknown source {source!r}."}
 

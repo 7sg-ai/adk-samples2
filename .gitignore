@@ -233,3 +233,7 @@ go/agents/sail-researcher/server
 
 # Temporary Files for Agent Engine Deployment
 **/*_tmp*/
+
+# Local git worktrees
+.worktrees/
+

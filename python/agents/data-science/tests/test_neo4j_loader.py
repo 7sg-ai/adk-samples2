@@ -127,3 +127,35 @@ async def test_load_xlsx_uses_neo4j_loader_when_selected(monkeypatch):
     assert loaded["nodes"] == 3 and loaded["edges"] == 1
     assert context.state["loaded_graph"] == loaded
     assert session.statements
+
+
+@pytest.mark.asyncio
+async def test_neo4j_load_returns_inferred_mapping(monkeypatch):
+    monkeypatch.setenv("GRAPH_SOURCE", "neo4j")
+    session = RecordingSession()
+
+    class _Ctx:
+        def __enter__(self):
+            return session
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(neo4j_store, "write_session", lambda: _Ctx())
+    loaded = await db_tools.load_xlsx("friends.xlsx", _ToolContext())
+    assert loaded["status"] == "SUCCESS"
+    assert loaded["source"] == "neo4j"
+    assert loaded["nodes"] == 3 and loaded["edges"] == 1
+    assert loaded["confidence"] in {"high", "medium", "low"}
+    mapping = loaded["mapping"]
+    assert {"sheet": "People", "id_column": "person_id"} in mapping["nodes"]
+    assert {node["sheet"] for node in mapping["nodes"]} == {"People", "Notes"}
+    assert mapping["edges"] == [
+        {
+            "sheet": "Knows",
+            "source_column": "source",
+            "target_column": "target",
+            "source_node": "People",
+            "target_node": "People",
+        }
+    ]

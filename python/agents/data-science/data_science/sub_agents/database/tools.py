@@ -250,7 +250,32 @@ async def load_xlsx(
             )
             with neo4j_store.write_session() as session:
                 counts = neo4j_loader.load_graph(node_plans, edge_plans, session)
-            loaded = {"status": "SUCCESS", "source": "neo4j", **counts}
+            analysis = xlsx_loader.analyze_workbook(part.inline_data.data)
+            loaded = {
+                "status": "SUCCESS",
+                "source": "neo4j",
+                **counts,
+                "confidence": analysis["confidence"],
+                "mapping": {
+                    "nodes": [
+                        {"sheet": spec["sheet"], "id_column": spec["id_column"]}
+                        for spec in analysis["node_sheets"]
+                    ],
+                    "edges": [
+                        {
+                            key: spec[key]
+                            for key in (
+                                "sheet",
+                                "source_column",
+                                "target_column",
+                                "source_node",
+                                "target_node",
+                            )
+                        }
+                        for spec in analysis["edge_sheets"]
+                    ],
+                },
+            }
         else:
             loaded = xlsx_loader.load_workbook(
                 workbook_bytes=part.inline_data.data,

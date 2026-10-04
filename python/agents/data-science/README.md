@@ -60,8 +60,9 @@ The key features of the Data Science Multi-Agent include:
     sub-agents, each specialized in a specific task.
 *   **Database Interaction:** One database agent lists sources, reads schema,
     and runs read-only SQL against BigQuery and Spanner Graph. Uploaded
-    `.xlsx` sheets are classified: large raw sheets become BigQuery tables,
-    and sheets with formulas or relationships become one Spanner Graph schema.
+    `.xlsx` sheets are classified: large raw sheets and named-range fact tables
+    become BigQuery tables, aggregate dashboards are skipped, and sheets with
+    cell formulas or relationships become one Spanner Graph schema.
     Natural language
     to SQL and BQML are not used.
 *   **Data Science Analysis (NL2Py):** Includes a Data Science Agent that

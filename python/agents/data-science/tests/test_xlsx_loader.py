@@ -366,6 +366,74 @@ def test_formula_sheet_routes_to_graph_and_raw_sheet_to_table():
     assert classified["Events"]["destination"] == "table"
 
 
+def _dashboard_book() -> bytes:
+    buffer = io.BytesIO()
+    workbook = Workbook()
+    plays = workbook.active
+    plays.title = "MLB-SAMPLE-PbP"
+    plays["A1"] = "Play-by-play"
+    plays["A2"] = "GAME ID"
+    plays["B2"] = "BATTER\nMLB-ID"
+    plays["C2"] = "PLAY TYPE"
+    plays["D2"] = "TEAM"
+    for index in range(1, 12):
+        plays.append([f"G{index}", 600000 + index, "Hit", "BOS" if index % 2 else "NYY"])
+    plays.append(["All Teams", 1, "Out", "All Teams"])
+    event_map = workbook.create_sheet("Event Map")
+    event_map["B4"] = "Event lookup"
+    event_map["B5"] = "PLAY TYPE"
+    event_map["C5"] = "GROUP"
+    event_map["B6"] = "Hit"
+    event_map["C6"] = "Contact"
+    event_map["B7"] = "Out"
+    event_map["C7"] = "Outs"
+    dashboard = workbook.create_sheet("Dashboard")
+    dashboard["A1"] = "Counts"
+    for row in range(2, 8):
+        dashboard.cell(
+            row,
+            1,
+            '=COUNTIFS(pbp_PlayType,B2,EM_Type,EventMap!B6)',
+        )
+        dashboard.cell(row, 2, '=SUMPRODUCT((pbp_Batter=600001)*1)')
+    lists = workbook.create_sheet("Lists")
+    lists["A1"] = "Teams"
+    lists["A2"] = "BOS"
+    from openpyxl.workbook.defined_name import DefinedName
+
+    workbook.defined_names.add(DefinedName(name="pbp_Batter", attr_text="='MLB-SAMPLE-PbP'!$B$3:INDEX('MLB-SAMPLE-PbP'!$B:$B,12)"))
+    workbook.defined_names.add(DefinedName(name="pbp_PlayType", attr_text="='MLB-SAMPLE-PbP'!$C$3:INDEX('MLB-SAMPLE-PbP'!$C:$C,12)"))
+    workbook.defined_names.add(DefinedName(name="pbp_Team", attr_text="='MLB-SAMPLE-PbP'!$D$3:INDEX('MLB-SAMPLE-PbP'!$D:$D,12)"))
+    workbook.defined_names.add(DefinedName(name="EM_Type", attr_text="='Event Map'!$B$6:$B$7"))
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def test_dashboard_uses_real_headers_and_skips_derived_sheets():
+    payload = _dashboard_book()
+    sheets = xlsx_loader.read_sheets(payload)
+    plays = sheets["MLB-SAMPLE-PbP"]
+    assert list(plays.columns) == ["GAME ID", "BATTER MLB-ID", "PLAY TYPE", "TEAM"]
+    assert "Unnamed: 0" not in plays.columns
+    assert len(plays) == 12
+    assert list(sheets["Event Map"].columns) == ["PLAY TYPE", "GROUP"]
+    classified = {
+        item["sheet"]: item
+        for item in xlsx_loader.classify_sheets(payload)["sheets"]
+    }
+    assert classified["MLB-SAMPLE-PbP"]["destination"] == "table"
+    assert classified["Event Map"]["destination"] == "table"
+    assert classified["Dashboard"]["destination"] == "skip"
+    assert classified["Lists"]["destination"] == "skip"
+    analysis = xlsx_loader.analyze_workbook(payload)
+    assert analysis["edge_sheets"] == []
+    assert all(
+        not str(column).startswith("Unnamed")
+        for profile in analysis["profiles"]
+        for column in [item["name"] for item in profile["columns"]]
+    )
+
+
 def test_large_raw_sheet_is_not_rejected(monkeypatch):
     frame = pd.DataFrame({"id": range(xlsx_loader.GRAPH_ROW_HINT + 1), "city": "x"})
     buffer = io.BytesIO()

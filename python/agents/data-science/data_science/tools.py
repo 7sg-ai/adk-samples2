@@ -33,6 +33,7 @@ async def call_database_agent(
     Use this for listing sources, reading schema, running a read-only query,
     or loading an uploaded .xlsx workbook. Large raw sheets become BigQuery
     tables; formula and relationship sheets become a Spanner Graph schema.
+    COUNTIFS/SUMIFS dashboards are skipped as derived views.
     Natural-language-to-SQL and BQML are not available on this agent.
     """
     logger.debug("call_database_agent: %s", question)

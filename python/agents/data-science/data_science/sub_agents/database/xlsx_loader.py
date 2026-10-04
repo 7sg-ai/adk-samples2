@@ -48,6 +48,20 @@ GRAPH_ROW_HINT = 20000
 BATCH_ROWS = 500
 EDGE_OVERLAP = 0.80
 HIGH_OVERLAP = 0.95
+MIN_EDGE_DISTINCT = 8
+_HEADER_SCAN_ROWS = 8
+_AGGREGATE_FN = re.compile(
+    r"\b(SUMPRODUCT|COUNTIFS?|SUMIFS?|AVERAGEIFS?|INDEX|MATCH)\s*\(",
+    re.IGNORECASE,
+)
+_SENTINEL = re.compile(
+    r"^(all(\s+\w+)?|total|none|n/?a|nan|--)$",
+    re.IGNORECASE,
+)
+_RANGE_REF = re.compile(
+    r"(?:'(?P<quoted>(?:[^']|'')+)'|(?P<plain>[A-Za-z_][A-Za-z0-9_]*))!"
+    r"\$?(?P<col>[A-Z]{1,3})\$?(?P<row>\d+)"
+)
 _FORMULA_REF = re.compile(
     r"(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_]*))!",
 )
@@ -159,8 +173,46 @@ def _clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return cleaned
 
 
+def _flatten_label(value: Any) -> str:
+    text = "" if value is None else str(value)
+    return re.sub(r"\s+", " ", text.replace("\n", " ")).strip()
+
+
+def _column_index(letters: str) -> int:
+    index = 0
+    for char in letters:
+        index = index * 26 + (ord(char.upper()) - 64)
+    return index
+
+
+def _is_blank(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        pass
+    return isinstance(value, str) and not value.strip()
+
+
+def _is_label(value: Any) -> bool:
+    if _is_blank(value) or isinstance(value, (int, float, datetime, date, bool)):
+        return False
+    text = _flatten_label(value)
+    return bool(text) and not text.startswith("=") and not _SENTINEL.match(text)
+
+
 def _non_null(series: pd.Series) -> pd.Series:
     return series.dropna()
+
+
+def _sentinel_share(series: pd.Series) -> float:
+    values = _non_null(series).map(_flatten_label)
+    if values.empty:
+        return 0.0
+    flagged = values.map(lambda text: bool(_SENTINEL.match(text)))
+    return float(flagged.mean())
 
 
 def _is_unique(series: pd.Series) -> bool:
@@ -197,9 +249,171 @@ def _profile_sheet(sheet: str, frame: pd.DataFrame) -> dict[str, Any]:
 
 
 def read_sheets(workbook_bytes: bytes) -> dict[str, pd.DataFrame]:
-    return pd.read_excel(
-        io.BytesIO(workbook_bytes), sheet_name=None, engine="openpyxl"
-    )
+    layout = parse_layout(workbook_bytes)
+    return {
+        sheet: info["frame"]
+        for sheet, info in layout["sheets"].items()
+    }
+
+
+def _sheet_grid(worksheet) -> list[list[Any]]:
+    return [list(row) for row in worksheet.iter_rows(values_only=True)]
+
+
+def _header_row(grid: list[list[Any]]) -> int | None:
+    """Return the 0-based row whose labels name the rows beneath it."""
+    best: tuple[float, int] | None = None
+    limit = min(len(grid), _HEADER_SCAN_ROWS)
+    for index in range(limit):
+        row = grid[index]
+        labels = [column for column, value in enumerate(row) if _is_label(value)]
+        if len(labels) == 1 and index + 1 < limit:
+            nxt = grid[index + 1]
+            if sum(1 for value in nxt if _is_label(value)) >= 2:
+                continue
+        if len(labels) < 2:
+            continue
+        followers = grid[index + 1 : index + 4]
+        if not followers:
+            continue
+        next_row = grid[index + 1]
+        next_label_count = sum(1 for value in next_row if _is_label(value))
+        if next_label_count > len(labels):
+            continue
+        filled = 0
+        text_followers = 0
+        checked = 0
+        for column in labels:
+            for follower in followers:
+                if column >= len(follower):
+                    continue
+                checked += 1
+                if not _is_blank(follower[column]):
+                    filled += 1
+                if _is_label(follower[column] if column < len(follower) else None):
+                    text_followers += 1
+        if not checked or not filled:
+            continue
+        data_share = 1 - (text_followers / filled)
+        score = len(labels) * (filled / checked) * (0.25 + data_share)
+        score = max(score, len(labels) * (filled / checked) * 0.8)
+        if best is None or score > best[0]:
+            best = (score, index)
+    if best is None or best[0] < 1.5:
+        return None
+    return best[1]
+
+
+def _region_frame(grid: list[list[Any]], header_index: int) -> pd.DataFrame:
+    """Build a frame from one header row, skipping blank and title columns."""
+    header = grid[header_index]
+    width = max((len(row) for row in grid), default=0)
+    columns: list[tuple[int, str]] = []
+    seen: dict[str, int] = {}
+    for column in range(width):
+        label = _flatten_label(header[column]) if column < len(header) else ""
+        if not _is_label(label):
+            continue
+        count = seen.get(label, 0) + 1
+        seen[label] = count
+        columns.append((column, label if count == 1 else f"{label}_{count}"))
+    records = []
+    for row in grid[header_index + 1 :]:
+        if not any(
+            column < len(row) and not _is_blank(row[column]) for column, _ in columns
+        ):
+            continue
+        records.append(
+            {
+                name: row[column] if column < len(row) else None
+                for column, name in columns
+            }
+        )
+    names = [name for _, name in columns]
+    if not records:
+        return _clean_frame(pd.DataFrame(columns=names))
+    return _clean_frame(pd.DataFrame.from_records(records, columns=names))
+
+
+def _open_book(workbook_bytes: bytes):
+    return open_workbook(io.BytesIO(workbook_bytes), data_only=False, read_only=False)
+
+
+def _defined_name_text(book) -> dict[str, str]:
+    return {
+        name: (getattr(defined, "attr_text", "") or "")
+        for name, defined in book.defined_names.items()
+    }
+
+
+def parse_layout(workbook_bytes: bytes) -> dict[str, Any]:
+    """Detect header rows, named-range columns, and fact versus lookup sheets.
+
+    Dashboard sheets full of COUNTIFS/SUMIFS stay out of the entity graph.
+    A fact sheet referenced by many column ranges, and the lookup sheet those
+    formulas join to, are returned as tables with their real headers.
+    """
+    book = _open_book(workbook_bytes)
+    try:
+        grids = {sheet.title: _sheet_grid(sheet) for sheet in book.worksheets}
+        names = _defined_name_text(book)
+        catalog: list[dict[str, Any]] = []
+        for name, text in names.items():
+            match = _RANGE_REF.search(text)
+            if not match:
+                continue
+            catalog.append(
+                {
+                    "name": name,
+                    "sheet": (match.group("quoted") or match.group("plain")).replace(
+                        "''", "'"
+                    ),
+                    "column": _column_index(match.group("col")),
+                    "row": int(match.group("row")),
+                }
+            )
+        by_sheet: dict[str, list[dict[str, Any]]] = {}
+        for item in catalog:
+            by_sheet.setdefault(item["sheet"], []).append(item)
+        sheets: dict[str, dict[str, Any]] = {}
+        for title, grid in grids.items():
+            header_index = _header_row(grid)
+            if header_index is None:
+                frame = _clean_frame(
+                    pd.read_excel(
+                        io.BytesIO(workbook_bytes),
+                        sheet_name=title,
+                        engine="openpyxl",
+                    )
+                )
+            else:
+                frame = _region_frame(grid, header_index)
+            refs = by_sheet.get(title, [])
+            labels: dict[str, str] = {}
+            if header_index is not None:
+                header = grid[header_index]
+                for item in refs:
+                    column = item["column"] - 1
+                    if 0 <= column < len(header) and _is_label(header[column]):
+                        labels[item["name"]] = _flatten_label(header[column])
+            sheets[title] = {
+                "sheet": title,
+                "header_row": None if header_index is None else header_index + 1,
+                "frame": frame,
+                "named_ranges": len(refs),
+                "range_labels": labels,
+            }
+        return {"sheets": sheets, "named_ranges": catalog, "defined_names": names}
+    finally:
+        book.close()
+
+
+def _aggregate_sheet(formulas: dict[str, Any]) -> bool:
+    samples = formulas.get("formula_samples") or []
+    count = int(formulas.get("formula_count") or 0)
+    if count < 3 or not samples:
+        return False
+    return any(_AGGREGATE_FN.search(sample) for sample in samples)
 
 
 def _formula_text(value: Any) -> str | None:
@@ -231,8 +445,8 @@ def formula_report(workbook_bytes: bytes) -> dict[str, dict[str, Any]]:
                     if not formula:
                         continue
                     formulas += 1
-                    if len(samples) < 3:
-                        samples.append(formula[:120])
+                    if len(samples) < 12:
+                        samples.append(formula[:160])
                     if _FORMULA_REF.search(formula):
                         cross_sheet += 1
                         for match in _FORMULA_REF.finditer(formula):
@@ -257,11 +471,27 @@ def _sheet_role(
     profile: dict,
     formulas: dict[str, Any],
     nodes: list[dict],
+    *,
+    layout_sheet: dict[str, Any] | None = None,
+    derived: bool = False,
+    settings: bool = False,
 ) -> tuple[str, str]:
-    """Return (table|graph, reason) for one sheet."""
+    """Return (table|graph|skip, reason) for one sheet."""
+    layout_sheet = layout_sheet or {}
     formula_count = int(formulas.get("formula_count") or 0)
-    cross_sheet = int(formulas.get("cross_sheet_refs") or 0)
+    named_ranges = int(layout_sheet.get("named_ranges") or 0)
+    if derived or (formula_count and _aggregate_sheet(formulas)):
+        return (
+            "skip",
+            f"{formula_count} aggregate formulas; derived view, not an entity.",
+        )
+    if named_ranges >= 3 and not formula_count and profile["row_count"] >= 1:
+        return (
+            "table",
+            f"Fact sheet referenced by {named_ranges} named column ranges.",
+        )
     if formula_count:
+        cross_sheet = int(formulas.get("cross_sheet_refs") or 0)
         if cross_sheet:
             return (
                 "graph",
@@ -278,19 +508,60 @@ def _sheet_role(
         )
     if profile["row_count"] == 0:
         return "table", "Empty sheet; stored as a table."
+    if (
+        not formula_count
+        and profile["row_count"] <= 30
+        and len(profile["frame"].columns) <= 1
+        and settings
+    ):
+        return "skip", "Settings or filter list, not an entity table."
     return (
         "table",
         "No formulas and no foreign-key overlap with another sheet.",
     )
 
 
+def _fact_sheet(layout: dict[str, Any]) -> str | None:
+    counts = {
+        sheet: int(info.get("named_ranges") or 0)
+        for sheet, info in layout["sheets"].items()
+    }
+    if not counts:
+        return None
+    sheet, count = max(counts.items(), key=lambda item: item[1])
+    return sheet if count >= 3 else None
+
+
+def _lookup_sheets(layout: dict[str, Any], formulas: dict[str, dict[str, Any]]) -> set[str]:
+    """Sheets joined by named ranges from aggregate formulas, not edge tables."""
+    fact = _fact_sheet(layout)
+    labels = {
+        sheet: set(info.get("range_labels") or {})
+        for sheet, info in layout["sheets"].items()
+        if sheet != fact
+    }
+    found = set()
+    for info in formulas.values():
+        if not _aggregate_sheet(info):
+            continue
+        for sample in info.get("formula_samples") or []:
+            for match in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", sample):
+                token = match.group(1)
+                for sheet, names in labels.items():
+                    if token in names:
+                        found.add(sheet)
+    return found
+
+
 def classify_sheets(workbook_bytes: bytes) -> dict[str, Any]:
-    """Choose BigQuery or Spanner Graph for each sheet. Does not load data."""
-    sheets = read_sheets(workbook_bytes)
+    """Choose BigQuery, Spanner Graph, or skip for each sheet. Does not load data."""
+    layout = parse_layout(workbook_bytes)
+    sheets = {sheet: info["frame"] for sheet, info in layout["sheets"].items()}
     if not sheets:
         raise ValueError("Workbook has no sheets.")
     profiles = [_profile_sheet(sheet, frame) for sheet, frame in sheets.items()]
     formulas = formula_report(workbook_bytes)
+    lookups = _lookup_sheets(layout, formulas)
     nodes = []
     for profile in profiles:
         id_column, confidence = _pick_id(profile)
@@ -309,19 +580,41 @@ def classify_sheets(workbook_bytes: bytes) -> dict[str, Any]:
     referenced = {
         name
         for info in formulas.values()
+        if not _aggregate_sheet(info)
         for name in info.get("references") or []
     }
     endpoints = set()
     for profile in profiles:
+        if profile["sheet"] in lookups or _aggregate_sheet(
+            formulas.get(profile["sheet"], {})
+        ):
+            continue
         pair = _best_edge_pair(profile, nodes)
-        if pair:
+        if pair and pair["source_node"] not in lookups and pair["target_node"] not in lookups:
             endpoints.add(pair["source_node"])
             endpoints.add(pair["target_node"])
     for profile in profiles:
+        formula_info = formulas.get(profile["sheet"], {})
         destination, reason = _sheet_role(
-            profile, formulas.get(profile["sheet"], {}), nodes
+            profile,
+            formula_info,
+            nodes,
+            layout_sheet=layout["sheets"].get(profile["sheet"], {}),
+            derived=profile["sheet"] not in lookups and _aggregate_sheet(formula_info),
+            settings=bool(layout.get("named_ranges")),
         )
-        if destination == "table" and profile["sheet"] in referenced:
+        if profile["sheet"] in lookups and destination != "skip":
+            destination = "table"
+            labels = sorted(
+                set(layout["sheets"][profile["sheet"]].get("range_labels", {}).values())
+            )
+            shown = ", ".join(labels[:6]) or "named ranges"
+            reason = f"Lookup dimension joined by named ranges ({shown})."
+        elif (
+            destination == "table"
+            and profile["sheet"] in referenced
+            and profile["sheet"] != _fact_sheet(layout)
+        ):
             destination = "graph"
             reason = "Referenced by a formula on another sheet."
         elif destination == "table" and profile["sheet"] in endpoints:
@@ -333,12 +626,15 @@ def classify_sheets(workbook_bytes: bytes) -> dict[str, Any]:
                 "destination": destination,
                 "reason": reason,
                 "row_count": profile["row_count"],
-                "formula_count": int(
-                    formulas.get(profile["sheet"], {}).get("formula_count") or 0
-                ),
+                "formula_count": int(formula_info.get("formula_count") or 0),
             }
         )
-    return {"sheets": decisions, "profiles": profiles, "formulas": formulas}
+    return {
+        "sheets": decisions,
+        "profiles": profiles,
+        "formulas": formulas,
+        "layout": layout,
+    }
 
 
 def _conventional_id(column: str) -> bool:
@@ -386,6 +682,24 @@ def _id_values(frame: pd.DataFrame, id_column: str) -> set[str]:
     return set(_non_null(frame[id_column]).map(_value_key))
 
 
+def _edge_key_ok(series: pd.Series, node: dict) -> bool:
+    """Reject shared labels, sentinels, and synthetic header names as edges."""
+    name = str(series.name)
+    id_column = str(node.get("id_column") or "")
+    if name.startswith("Unnamed") or id_column.startswith("Unnamed"):
+        return False
+    if _sentinel_share(series) >= 0.5:
+        return False
+    values = set(_non_null(series).map(_value_key))
+    if len(values) < MIN_EDGE_DISTINCT and not (
+        _conventional_id(name) or _conventional_id(id_column)
+    ):
+        return False
+    if not _conventional_id(name) and not _conventional_id(id_column):
+        return False
+    return True
+
+
 def _rank_targets(
     series: pd.Series, nodes: list[dict], *, skip_sheet: str
 ) -> list[dict]:
@@ -394,7 +708,7 @@ def _rank_targets(
         if node["sheet"] == skip_sheet or not node["id_values"]:
             continue
         overlap = _overlap(series, node["id_values"])
-        if overlap < EDGE_OVERLAP:
+        if overlap < EDGE_OVERLAP or not _edge_key_ok(series, node):
             continue
         ranked.append(
             {
@@ -931,10 +1245,12 @@ def load_workbook(
 ) -> dict[str, Any]:
     """Load each sheet as a BigQuery table or into one Spanner property graph.
 
-    Large raw sheets become tables. Smaller sheets with formulas or key overlap
-    become the graph. An explicit node/edge mapping forces those sheets into the
-    graph and leaves the other sheets as tables. Reloading the same filename
-    replaces both sides and drops objects the new plan no longer uses.
+    Large raw sheets and named-range fact tables become BigQuery tables.
+    Aggregate dashboards are skipped. Smaller sheets with formulas or key
+    overlap become the graph. An explicit node/edge mapping forces those
+    sheets into the graph and leaves the other sheets as tables. Reloading
+    the same filename replaces both sides and drops objects the new plan
+    no longer uses.
     """
     sheets = read_sheets(workbook_bytes)
     if not sheets:
@@ -995,7 +1311,11 @@ def load_workbook(
                 and spec.get("target_node") in graph_sheets
             ]
             graph_sheets = {spec["sheet"] for spec in node_specs + edge_specs}
-            table_sheets = [sheet for sheet in sheets if sheet not in graph_sheets]
+            table_sheets = [
+                sheet
+                for sheet, item in by_sheet.items()
+                if sheet not in graph_sheets and item["destination"] != "skip"
+            ]
             for item in by_sheet.values():
                 if item["sheet"] in graph_sheets:
                     continue

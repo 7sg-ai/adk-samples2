@@ -37,8 +37,10 @@ def return_instructions_database() -> str:
     - query: run read-only GoogleSQL. source is "bigquery" or "spanner".
       Spanner graph reads use GRAPH <graph_name> MATCH ... RETURN ...
       Pass the full statement. Do not use a separate graph tool.
-    - load_xlsx: the only write path. Large raw sheets become BigQuery tables.
-      Sheets with formulas or relationships become one Spanner Graph schema.
+    - load_xlsx: the only write path. Large raw sheets and named-range fact
+      tables become BigQuery tables. COUNTIFS, SUMIFS, and SUMPRODUCT
+      dashboards are skipped as derived views. Sheets with cell formulas or
+      key relationships become one Spanner Graph schema.
       There is no row-count limit. On the first load, pass only artifact_name.
       The upload is already in the session. Never ask the user for a filename
       or to upload the file again. If the user message contains

@@ -82,7 +82,7 @@ async def test_load_xlsx_uses_spanner_loader_by_default(monkeypatch):
         "load_graph",
         lambda *args, **kwargs: pytest.fail("neo4j load_graph must not run"),
     )
-    loaded = await db_tools.load_xlsx("friends.xlsx", _ToolContext())
+    loaded = await db_tools.load_xlsx(_ToolContext(), "friends.xlsx")
     assert loaded == {"graph_name": "g"}
     assert calls and calls[0]["workbook_name"] == "friends.xlsx"
 
@@ -99,7 +99,7 @@ async def test_load_xlsx_spanner_when_graph_source_patched(monkeypatch):
         "load_graph",
         lambda *args, **kwargs: pytest.fail("neo4j load_graph must not run"),
     )
-    await db_tools.load_xlsx("friends.xlsx", _ToolContext())
+    await db_tools.load_xlsx(_ToolContext(), "friends.xlsx")
     assert len(calls) == 1
 
 
@@ -122,7 +122,7 @@ async def test_load_xlsx_uses_neo4j_loader_when_selected(monkeypatch):
         lambda **kwargs: pytest.fail("spanner load_workbook must not run"),
     )
     context = _ToolContext()
-    loaded = await db_tools.load_xlsx("friends.xlsx", context)
+    loaded = await db_tools.load_xlsx(context, "friends.xlsx")
     assert loaded["status"] == "SUCCESS"
     assert loaded["nodes"] == 3 and loaded["edges"] == 1
     assert context.state["loaded_graph"] == loaded
@@ -142,7 +142,7 @@ async def test_neo4j_load_returns_inferred_mapping(monkeypatch):
             return False
 
     monkeypatch.setattr(neo4j_store, "write_session", lambda: _Ctx())
-    loaded = await db_tools.load_xlsx("friends.xlsx", _ToolContext())
+    loaded = await db_tools.load_xlsx(_ToolContext(), "friends.xlsx")
     assert loaded["status"] == "SUCCESS"
     assert loaded["source"] == "neo4j"
     assert loaded["nodes"] == 3 and loaded["edges"] == 1

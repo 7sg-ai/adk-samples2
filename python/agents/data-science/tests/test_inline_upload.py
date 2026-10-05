@@ -89,7 +89,7 @@ async def test_inline_file_upload_is_visible_to_load_xlsx(monkeypatch):
         "load_workbook",
         lambda **kwargs: {"graph_name": "g_test", "workbook_name": kwargs["workbook_name"]},
     )
-    loaded = await db_tools.load_xlsx("inline-file", _ToolContext(service))
+    loaded = await db_tools.load_xlsx(_ToolContext(service), "inline-file")
 
     assert loaded.get("status") != "ERROR"
     assert loaded["workbook_name"] == "inline-file"

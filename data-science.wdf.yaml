@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.4.3"
+  version: "0.4.4"
 
 workload:
   source:
@@ -67,10 +67,8 @@ secrets:
     - name: bq-data-project-id
       injectAs: env
       envVar: BQ_DATA_PROJECT_ID
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: bq-data-project-id
+      source_type: internal_value
+      internalRef: bq-data-project-id
     - name: alloydb-postgres-user
       injectAs: env
       envVar: ALLOYDB_POSTGRES_USER
@@ -88,10 +86,8 @@ secrets:
     - name: bq-compute-project-id
       injectAs: env
       envVar: BQ_COMPUTE_PROJECT_ID
-      externalRef:
-        provider: gcp-secret-manager
-        vaultRef: gcp-main
-        key: bq-compute-project-id
+      source_type: internal_value
+      internalRef: bq-compute-project-id
     - name: bq-dataset-id
       injectAs: env
       envVar: BQ_DATASET_ID
@@ -446,6 +442,8 @@ scenarios:
                 - gcp-secret-manager-project-id
                 - gcp-sa-key-json
                 - neo4j-password
+                - bq-data-project-id
+                - bq-compute-project-id
               resources:
                 cpu: "1"
                 memory: 2Gi

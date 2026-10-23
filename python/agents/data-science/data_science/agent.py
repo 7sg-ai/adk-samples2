@@ -177,12 +177,37 @@ def get_dataset_definitions_for_instructions() -> str:
     dataset_definitions = """
 <DATASETS>
 """
+    configured_dataset = os.getenv("BQ_DATASET_ID", "").strip().strip("'\"")
+    configured_project = (
+        os.getenv("BQ_DATA_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or ""
+    ).strip().strip("'\"")
+    file_bigquery_name = next(
+        (
+            str(item.get("name") or "")
+            for item in _dataset_config["datasets"]
+            if item.get("type") == "bigquery"
+        ),
+        "",
+    )
+    dataset_replaces_file = bool(configured_dataset) and configured_dataset != file_bigquery_name
     for dataset in _dataset_config["datasets"]:
         dataset_type = dataset["type"]
+        description = dataset["description"]
+        if dataset_type == "bigquery" and dataset_replaces_file:
+            description = (
+                f"BigQuery dataset {configured_dataset} in project {configured_project}. "
+                "Query only this dataset. Write every table as "
+                f"{configured_dataset}.table_id."
+            )
+            if configured_dataset == "workbook_data":
+                description += (
+                    " Tables: acme_assumptions, acme_debt_annual, acme_debt_terms, "
+                    "acme_income_statement, acme_summary."
+                )
         dataset_definitions += f"""
 <{dataset_type.upper()}>
 <DESCRIPTION>
-{dataset["description"]}
+{description}
 </DESCRIPTION>
 <SCHEMA>
 --------- The schema of the relevant database with a few sample rows. --------
@@ -195,7 +220,7 @@ def get_dataset_definitions_for_instructions() -> str:
 </DATASETS>
 """
 
-    if "cross_dataset_relations" in _dataset_config:
+    if "cross_dataset_relations" in _dataset_config and not dataset_replaces_file:
         dataset_definitions += f"""
 <CROSS_DATASET_RELATIONS>
 --------- The cross dataset relations between the configured datasets. ---------
@@ -217,7 +242,7 @@ def get_root_agent() -> LlmAgent:
     if any(dataset["type"] == "alloydb" for dataset in _dataset_config["datasets"]):
         tools.append(call_alloydb_agent)
     agent = LlmAgent(
-        model=os.getenv("ROOT_AGENT_MODEL", "gemini-2.5-flash"),
+        model=os.getenv("ROOT_AGENT_MODEL", "").strip().strip("'\"") or "gemini-2.5-flash",
         name="data_science_root_agent",
         instruction=return_instructions_root()
         + get_dataset_definitions_for_instructions(),

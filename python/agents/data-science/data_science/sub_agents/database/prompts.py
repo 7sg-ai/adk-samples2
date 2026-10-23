@@ -15,12 +15,29 @@
 """Instructions for the shared database agent."""
 
 from data_science.sub_agents.database.dataset_config import uses_cluster_stores
+from data_science.sub_agents.database.settings import bq_dataset_id, bq_project_id, configured_model
 
 
 def return_instructions_database() -> str:
     if uses_cluster_stores():
         return _CLUSTER_INSTRUCTIONS
-    return _CLOUD_INSTRUCTIONS
+    dataset = bq_dataset_id()
+    if not dataset:
+        return _CLOUD_INSTRUCTIONS
+    project = bq_project_id()
+    model = configured_model("DATABASE_AGENT_MODEL", "BIGQUERY_AGENT_MODEL")
+    tables = ""
+    if dataset == "workbook_data":
+        tables = (
+            " Tables: acme_assumptions, acme_debt_annual, acme_debt_terms, "
+            "acme_income_statement, acme_summary."
+        )
+    return (
+        _CLOUD_INSTRUCTIONS
+        + f"\n    BigQuery dataset is {dataset} in project {project}. "
+        + f"Write every table as {dataset}.table_id.{tables} "
+        + f"Use Vertex AI model {model}.\n"
+    )
 
 
 _CLUSTER_INSTRUCTIONS = """

@@ -220,7 +220,18 @@ async def query(source: str, sql: str, tool_context: ToolContext) -> dict:
         client = bigquery.Client(
             project=os.getenv("BQ_COMPUTE_PROJECT_ID") or project
         )
-        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+        dataset_id = settings.bq_dataset_id()
+        statement = settings.qualify_bigquery_sql(statement, dataset_id, project)
+        default_dataset = (
+            bigquery.DatasetReference(project, dataset_id)
+            if project and dataset_id
+            else None
+        )
+        job_config = bigquery.QueryJobConfig(
+            dry_run=True,
+            use_query_cache=False,
+            default_dataset=default_dataset,
+        )
         client.query(statement, job_config=job_config).result()
         execute = await _tool(_bq_toolset, "execute_sql")
         result = await execute.run_async(

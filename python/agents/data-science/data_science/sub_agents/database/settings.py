@@ -33,6 +33,44 @@ def bq_dataset_id() -> str:
     return env("BQ_DATASET_ID")
 
 
+def configured_model(*names: str) -> str:
+    """Model id from the WDF env, then Vertex Gemini 2.5 Flash."""
+    for name in (*names, "ROOT_AGENT_MODEL"):
+        value = env(name)
+        if value:
+            return value
+    return "gemini-2.5-flash"
+
+
+def qualify_bigquery_sql(sql: str, dataset: str, project: str = "") -> str:
+    """Prefix bare table names with the configured BigQuery dataset."""
+    dataset = (dataset or "").strip()
+    project = (project or "").strip()
+    if not dataset or not (sql or "").strip():
+        return sql
+    import sqlglot
+    from sqlglot import exp
+
+    try:
+        tree = sqlglot.parse_one(sql, read="bigquery")
+    except sqlglot.errors.SqlglotError:
+        return sql
+    cte_names = {
+        cte.alias_or_name
+        for cte in tree.find_all(exp.CTE)
+        if cte.alias_or_name
+    }
+    for table in tree.find_all(exp.Table):
+        if not table.name or table.name in cte_names:
+            continue
+        if table.args.get("db") or table.args.get("catalog"):
+            continue
+        table.set("db", exp.to_identifier(dataset))
+        if project:
+            table.set("catalog", exp.to_identifier(project))
+    return tree.sql(dialect="bigquery")
+
+
 def spanner_project_id() -> str:
     return env("SPANNER_PROJECT_ID") or env("GOOGLE_CLOUD_PROJECT")
 

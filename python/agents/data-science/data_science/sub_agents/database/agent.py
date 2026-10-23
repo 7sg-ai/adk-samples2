@@ -14,16 +14,15 @@
 
 """Database agent: one tool chain for BigQuery and Spanner Graph."""
 
-import os
-
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
 from .prompts import return_instructions_database
+from .settings import configured_model
 from .tools import get_schema, list_sources, load_xlsx, query
 
 database_agent = Agent(
-    model=os.getenv("DATABASE_AGENT_MODEL", os.getenv("BIGQUERY_AGENT_MODEL", "")),
+    model=configured_model("DATABASE_AGENT_MODEL", "BIGQUERY_AGENT_MODEL"),
     name="database_agent",
     instruction=return_instructions_database(),
     tools=[

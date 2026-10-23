@@ -1,0 +1,15 @@
+{
+  "description": "Load the Acme Corp Financial Model workbook into the in-cluster Postgres and Neo4j stores. The built app image already contains sample_data/ and the private_ntt_load module.",
+  "command": ["python", "-m", "data_science.private_ntt_load"],
+  "wait_for": ["neo4j", "postgres-acme"],
+  "env": [
+    {"name": "POSTGRES_HOST", "value": "postgres-acme.ntt-tenant-a.svc"},
+    {"name": "POSTGRES_PORT", "value": "5432"},
+    {"name": "POSTGRES_DB", "value": "acme"},
+    {"name": "POSTGRES_USER", "value": "acme"},
+    {"name": "NEO4J_URI", "value": "bolt://neo4j.ntt-tenant-a.svc:7687"},
+    {"name": "NEO4J_USER", "value": "neo4j"}
+  ],
+  "secret_refs": ["neo4j-password", "postgres-acme-password"],
+  "timeout_seconds": 480
+}

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-acme
+  namespace: ntt-tenant-a
+  labels:
+    app: postgres-acme
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-acme
+  template:
+    metadata:
+      labels:
+        app: postgres-acme
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: acme
+            - name: POSTGRES_USER
+              value: acme
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-acme-password
+                  key: password
+                  optional: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "acme", "-d", "acme"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-acme
+  namespace: ntt-tenant-a
+  labels:
+    app: postgres-acme
+spec:
+  selector:
+    app: postgres-acme
+  ports:
+    - port: 5432
+      targetPort: 5432

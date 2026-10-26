@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.4.5"
+  version: "0.4.6"
 
 workload:
   source:
@@ -142,6 +142,12 @@ secrets:
     - name: neo4j-password
       injectAs: env
       envVar: NEO4J_PASSWORD
+      source_type: internal_value
+      internalRef: neo4j-password
+    - name: neo4j-auth
+      injectAs: env
+      envVar: NEO4J_AUTH
+      valueTemplate: "neo4j/{value}"
       source_type: internal_value
       internalRef: neo4j-password
     - name: neo4j-password-gcp
@@ -481,7 +487,7 @@ scenarios:
                 repository: neo4j
                 tag: "5"
               envFromSecretRefs:
-                - neo4j-password
+                - neo4j-auth
               resources:
                 cpu: "1"
                 memory: 2Gi
@@ -491,6 +497,15 @@ scenarios:
                 policy:
                   metric: cpu
                   target: 70
+            endpoints:
+              - name: bolt
+                port: 7687
+                exposure: internal
+                protocol: tcp
+              - name: http
+                port: 7474
+                exposure: internal
+                protocol: http
           - name: postgres-acme
             role: custom
             runtime:

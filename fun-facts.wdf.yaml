@@ -15,7 +15,7 @@ metadata:
 workload:
   source:
     git:
-      repoUrl: https://github.com/nadeem7sg/adk-samples2
+      repoUrl: https://github.com/7sg-ai/adk-samples2
       ref: main
       path: python/agents/fun-facts
 security:

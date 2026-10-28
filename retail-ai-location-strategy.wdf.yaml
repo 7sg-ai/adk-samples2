@@ -11,7 +11,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: 0.1.2
+  version: 0.1.3
 workload:
   source:
     git:

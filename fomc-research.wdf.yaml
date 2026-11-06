@@ -120,6 +120,14 @@ scenarios:
         hit_rate_min_pct: 0.0
       load:
         replay_concurrency: 2  # heavy pipeline; limited concurrency
+
+    models:
+      - model: gemini-2.5-flash      # optional identity
+        minReplicaCount: 1           # optional, integer >= 0
+        maxReplicaCount: 5           # optional, integer >= 1
+      - model: gemini-2.5-pro
+        minReplicaCount: 0
+        maxReplicaCount: 2
     deployments:
     - name: fomc-research-gcp-us-central
       target:
@@ -177,6 +185,14 @@ scenarios:
         hit_rate_min_pct: 0.0
       load:
         replay_concurrency: 2  # heavy pipeline; limited concurrency
+
+    models:
+      - model: gemini-2.5-flash      # optional identity
+        minReplicaCount: 1           # optional, integer >= 0
+        maxReplicaCount: 5           # optional, integer >= 1
+      - model: gemini-2.5-pro
+        minReplicaCount: 0
+        maxReplicaCount: 2
     deployments:
     - name: local
       target:

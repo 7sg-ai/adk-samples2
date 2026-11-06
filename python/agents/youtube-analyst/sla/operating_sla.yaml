@@ -13,24 +13,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Data-informed (observed profiling + headroom). youtube-analyst observed
 # (concurrency 8): success ~88%, latency p50 ~15s / p95 ~40s, cost ~$0.05/txn.
-slos:
-  latency:
-    p50_ms: 15000
-    p95_ms: 40000
-    p99_ms: 60000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 88.0
-    error_rate_max_pct: 12.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.05
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 8   # lightweight data retrieval; handles 8 concurrent fine
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

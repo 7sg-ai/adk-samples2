@@ -10,24 +10,6 @@
 #
 version: 1
 
-slos:
-  latency:
-    p50_ms: 5000        # single agent + one search call; very fast
-    p95_ms: 15000
-    p99_ms: 25000
-  ttft:
-    p95_ms: null        # non-streaming /run -> TTFT not measured
-  reliability:
-    success_rate_min_pct: 95.0
-    error_rate_max_pct: 5.0
-    retry_rate_max_pct: 3.0
-  cost:
-    max_cost_per_transaction_usd: 0.02  # single model call + search
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 10  # lightweight; handles high concurrency
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

@@ -13,24 +13,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Data-informed (observed profiling + headroom). retail-ai-location-strategy observed
 # (concurrency 3): success ~80%, latency p50 ~30s / p95 ~65s, cost ~$0.10/txn.
-slos:
-  latency:
-    p50_ms: 30000
-    p95_ms: 65000
-    p99_ms: 100000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 80.0
-    error_rate_max_pct: 20.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.10
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 3   # heavy geospatial pipeline; limited concurrency
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

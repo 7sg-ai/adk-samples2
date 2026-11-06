@@ -13,24 +13,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Heavy multi-agent system (4 sub-agents: data/trading/risk/execution).
 # Not yet profiled; standard heavy-agent SLO with generous headroom.
-slos:
-  latency:
-    p50_ms: 60000
-    p95_ms: 200000
-    p99_ms: 300000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 80.0
-    error_rate_max_pct: 20.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 3.00
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 1   # heavy 4-sub-agent system; serialize to avoid container overload
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

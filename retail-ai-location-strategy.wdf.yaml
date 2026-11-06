@@ -110,6 +110,24 @@ scenarios:
           exposure: public
           protocol: http
           path: /
+
+    slos:
+      latency:
+        p50_ms: 30000
+        p95_ms: 65000
+        p99_ms: 100000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 80.0
+        error_rate_max_pct: 20.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 0.10
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 3   # heavy geospatial pipeline; limited concurrency
     deployments:
     - name: retail-ai-location-strategy-gcp-us-central
       target:
@@ -149,6 +167,24 @@ scenarios:
           exposure: public
           protocol: http
           path: /
+
+    slos:
+      latency:
+        p50_ms: 30000
+        p95_ms: 65000
+        p99_ms: 100000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 80.0
+        error_rate_max_pct: 20.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 0.10
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 3   # heavy geospatial pipeline; limited concurrency
     deployments:
     - name: local
       target:
@@ -156,3 +192,4 @@ scenarios:
         region: local
       components:
       - retail-ai-location-strategy-service
+

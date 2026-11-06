@@ -10,24 +10,6 @@
 #
 version: 1
 
-slos:
-  latency:
-    p50_ms: 10000       # medium pipeline; SQL gen + BigQuery exec
-    p95_ms: 30000
-    p99_ms: 45000
-  ttft:
-    p95_ms: null        # non-streaming /run -> TTFT not measured
-  reliability:
-    success_rate_min_pct: 90.0
-    error_rate_max_pct: 10.0
-    retry_rate_max_pct: 5.0
-  cost:
-    max_cost_per_transaction_usd: 0.05  # two model calls + BigQuery query
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 6  # medium weight; handles moderate concurrency
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

@@ -20,24 +20,6 @@ version: 1
 #
 # llm_auditor observed (concurrency 3): success ~98%, error ~2%,
 #   latency p50 ~7-16s / p95 ~35-83s, cost ~$0.054/txn, ~4 model calls.
-slos:
-  latency:
-    p50_ms: 20000      # observed p50 ~16s + headroom
-    p95_ms: 90000      # observed p95 ~83s + headroom
-    p99_ms: 120000
-  ttft:
-    p95_ms: null       # non-streaming /run -> TTFT not measured
-  reliability:
-    success_rate_min_pct: 90.0   # observed ~98%, target with margin
-    error_rate_max_pct: 10.0     # observed ~2%
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.10   # observed ~$0.054/txn + headroom
-  cache:
-    hit_rate_min_pct: 0.0        # agent does not use prompt caching
-  load:
-    replay_concurrency: 6   # light agent; handles 6 concurrent fine
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   

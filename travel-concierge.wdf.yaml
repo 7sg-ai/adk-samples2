@@ -110,6 +110,24 @@ scenarios:
           exposure: public
           protocol: http
           path: /
+
+    slos:
+      latency:
+        p50_ms: 25000
+        p95_ms: 55000
+        p99_ms: 90000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 82.0
+        error_rate_max_pct: 18.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 0.08
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 4   # multi-agent coordination; moderate concurrency
     deployments:
     - name: travel-concierge-gcp-us-central
       target:
@@ -149,6 +167,24 @@ scenarios:
           exposure: public
           protocol: http
           path: /
+
+    slos:
+      latency:
+        p50_ms: 25000
+        p95_ms: 55000
+        p99_ms: 90000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 82.0
+        error_rate_max_pct: 18.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 0.08
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 4   # multi-agent coordination; moderate concurrency
     deployments:
     - name: local
       target:
@@ -156,3 +192,4 @@ scenarios:
         region: local
       components:
       - travel-concierge-service
+

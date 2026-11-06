@@ -116,6 +116,24 @@ scenarios:
               exposure: public
               protocol: http
               path: /
+
+    slos:
+      latency:
+        p50_ms: 35000
+        p95_ms: 70000
+        p99_ms: 100000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 85.0
+        error_rate_max_pct: 15.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 0.10
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 6   # light agent; handles 6 concurrent fine
     deployments:
       - name: blog-writer-gcp-us-central
         target:
@@ -158,6 +176,24 @@ scenarios:
                 exposure: public
                 protocol: http
                 path: /
+
+      slos:
+        latency:
+          p50_ms: 35000
+          p95_ms: 70000
+          p99_ms: 100000
+        ttft:
+          p95_ms: null
+        reliability:
+          success_rate_min_pct: 85.0
+          error_rate_max_pct: 15.0
+          retry_rate_max_pct: 10.0
+        cost:
+          max_cost_per_transaction_usd: 0.10
+        cache:
+          hit_rate_min_pct: 0.0
+        load:
+          replay_concurrency: 6   # light agent; handles 6 concurrent fine
       deployments:
         - name: local
           target:
@@ -165,3 +201,4 @@ scenarios:
             region: local
           components:
             - blog-writer-service
+

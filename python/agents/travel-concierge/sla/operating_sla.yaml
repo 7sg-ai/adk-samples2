@@ -13,24 +13,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Data-informed (observed profiling + headroom). travel-concierge observed
 # (concurrency 4): success ~82%, latency p50 ~25s / p95 ~55s, cost ~$0.08/txn.
-slos:
-  latency:
-    p50_ms: 25000
-    p95_ms: 55000
-    p99_ms: 90000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 82.0
-    error_rate_max_pct: 18.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.08
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 4   # multi-agent coordination; moderate concurrency
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

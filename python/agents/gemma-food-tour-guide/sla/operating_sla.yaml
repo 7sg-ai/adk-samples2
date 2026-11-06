@@ -14,24 +14,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Data-informed (observed profiling + headroom). gemma-food-tour-guide observed
 # (concurrency 6): success ~85%, latency p50 ~20s / p95 ~45s, cost ~$0.06/txn.
-slos:
-  latency:
-    p50_ms: 20000
-    p95_ms: 45000
-    p99_ms: 70000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 85.0
-    error_rate_max_pct: 15.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.06
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 6   # single agent with MCP tools; handles 6 concurrent fine
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

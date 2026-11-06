@@ -14,24 +14,6 @@ version: 1
 # Machine-readable SLO contract consumed by Sherpa's profile_sla_evaluator.
 # Data-informed (observed profiling + headroom). supply-chain observed
 # (concurrency 3): success ~78%, latency p50 ~35s / p95 ~75s, cost ~$0.12/txn.
-slos:
-  latency:
-    p50_ms: 35000
-    p95_ms: 75000
-    p99_ms: 120000
-  ttft:
-    p95_ms: null
-  reliability:
-    success_rate_min_pct: 78.0
-    error_rate_max_pct: 22.0
-    retry_rate_max_pct: 10.0
-  cost:
-    max_cost_per_transaction_usd: 0.12
-  cache:
-    hit_rate_min_pct: 0.0
-  load:
-    replay_concurrency: 3   # heavy BigQuery + multi-agent pipeline; limited concurrency
-
 reference:
   title: "AI-Enabled Application: Run, Scale & Operate Metrics Framework"
   source_document: "Profilingconfluence.MD"

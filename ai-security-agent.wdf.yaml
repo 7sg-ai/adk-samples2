@@ -114,6 +114,24 @@ scenarios:
               exposure: public
               protocol: http
               path: /
+
+    slos:
+      latency:
+        p50_ms: 60000
+        p95_ms: 200000
+        p99_ms: 300000
+      ttft:
+        p95_ms: null
+      reliability:
+        success_rate_min_pct: 80.0
+        error_rate_max_pct: 20.0
+        retry_rate_max_pct: 10.0
+      cost:
+        max_cost_per_transaction_usd: 3.00
+      cache:
+        hit_rate_min_pct: 0.0
+      load:
+        replay_concurrency: 1   # heavy multi-model agent; serialize to avoid container overload
     deployments:
       - name: ai-security-agent-gcp-us-central
         target:
@@ -156,6 +174,24 @@ scenarios:
                 exposure: public
                 protocol: http
                 path: /
+
+      slos:
+        latency:
+          p50_ms: 60000
+          p95_ms: 200000
+          p99_ms: 300000
+        ttft:
+          p95_ms: null
+        reliability:
+          success_rate_min_pct: 80.0
+          error_rate_max_pct: 20.0
+          retry_rate_max_pct: 10.0
+        cost:
+          max_cost_per_transaction_usd: 3.00
+        cache:
+          hit_rate_min_pct: 0.0
+        load:
+          replay_concurrency: 1   # heavy multi-model agent; serialize to avoid container overload
       deployments:
         - name: local
           target:
@@ -163,3 +199,4 @@ scenarios:
             region: local
           components:
             - ai-security-agent-service
+

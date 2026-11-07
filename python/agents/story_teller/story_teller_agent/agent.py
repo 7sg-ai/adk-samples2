@@ -13,12 +13,15 @@
 # limitations under the License.
 
 
+import os
+
 from google.adk.agents import (
     LlmAgent,
     LoopAgent,
     ParallelAgent,
     SequentialAgent,
 )
+from google.adk.models import Gemini
 from google.genai import types
 
 from . import instructions
@@ -28,6 +31,28 @@ APP_NAME = "collaborative_story_writer"
 SESSION_ID = "story_session_v1"
 MODEL_NAME = "gemini-2.5-flash"
 USER_ID = "author_user_01"
+
+
+def story_model():
+    """Publisher Gemini, or a Sherpa-owned Vertex endpoint when both env vars are set.
+
+    One var without the other is a broken deploy, so the process refuses to start.
+    Neither var keeps the existing publisher call.
+    """
+    endpoint = os.environ.get("STORY_MODEL_ENDPOINT", "").strip()
+    region = os.environ.get("STORY_MODEL_REGION", "").strip()
+    if not endpoint and not region:
+        return MODEL_NAME
+    if not endpoint or not region:
+        raise RuntimeError("STORY_MODEL_ENDPOINT and STORY_MODEL_REGION must both be set")
+    # model is the endpoint resource. The GenAI client then posts
+    # {endpoint}:generateContent on the regional host. Putting the resource in
+    # base_url makes it append a second publisher model path.
+    return Gemini(
+        model=endpoint,
+        api_version="v1",
+        client_kwargs={"vertexai": True, "location": region},
+    )
 
 # User-Defined Constraints
 N_CHAPTERS = 3  # Number of chapters to write
@@ -51,7 +76,7 @@ def set_initial_story(callback_context, llm_request):
 # Expands the user's simple idea into a full premise.
 prompt_enhancer = LlmAgent(
     name="PromptEnhancerAgent",
-    model=MODEL_NAME,
+    model=story_model(),
     instruction=instructions.PROMPT_ENHANCER_INSTRUCTION,
     description="Expands user prompt into a full story premise.",
     output_key=KEY_ENHANCED_PROMPT,
@@ -61,7 +86,7 @@ prompt_enhancer = LlmAgent(
 # Focuses on novelty and twists (High Temperature).
 creative_writer = LlmAgent(
     name="CreativeStoryTellerAgent",
-    model=MODEL_NAME,
+    model=story_model(),
     # High temperature for creativity/randomness
     generate_content_config=types.GenerateContentConfig(temperature=0.9),
     instruction=instructions.CREATIVE_WRITER_INSTRUCTION.format(
@@ -74,7 +99,7 @@ creative_writer = LlmAgent(
 # Focuses on logic and consistency (Low Temperature).
 focused_writer = LlmAgent(
     name="FocusedStoryTellerAgent",
-    model=MODEL_NAME,
+    model=story_model(),
     # Low temperature for consistency/logic
     generate_content_config=types.GenerateContentConfig(temperature=0.2),
     instruction=instructions.FOCUSED_WRITER_INSTRUCTION.format(
@@ -88,7 +113,7 @@ focused_writer = LlmAgent(
 # Note: This agent reads the current story AND the candidates, then outputs the UPDATED full story.
 critique_agent = LlmAgent(
     name="CritiqueAgent",
-    model=MODEL_NAME,
+    model=story_model(),
     instruction=instructions.CRITIQUE_AGENT_INSTRUCTION,
     description="Selects the best chapter and updates the story state.",
     output_key=KEY_CURRENT_STORY,  # Overwrites current_story with the extended version
@@ -97,7 +122,7 @@ critique_agent = LlmAgent(
 # Final Polish.
 editor_agent = LlmAgent(
     name="EditorAgent",
-    model=MODEL_NAME,
+    model=story_model(),
     instruction=instructions.EDITOR_AGENT_INSTRUCTION,
     description="Polishes the final draft.",
     output_key=KEY_FINAL_STORY,

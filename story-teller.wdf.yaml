@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: "0.1.3"
+  version: "0.1.4"
 
 workload:
   source:
@@ -79,9 +79,9 @@ dataSources:
 scenarios:
   native:
     description: >
-      GCP-native deployment: containerised ADK agent on Cloud Run with
-      Vertex AI Gemini 2.0 Flash as the backing LLM. No external tools
-      or data sources — pure LLM generation pipeline.
+      GCP-native deployment: containerised ADK agent on Cloud Run.
+      The backing model is the deployed Gemma 3 1B endpoint named by
+      STORY_MODEL_ENDPOINT. No external tools or data sources.
     topology:
       components:
         - name: story-teller-service
@@ -138,11 +138,8 @@ scenarios:
         replay_concurrency: 6   # light/sequential agent; handles 6 concurrent
 
     models:
-      - model: gemini-2.5-flash      # optional identity
-        minReplicaCount: 1           # optional, integer >= 0
-        maxReplicaCount: 5           # optional, integer >= 1
-      - model: gemini-2.5-pro
-        minReplicaCount: 0
+      - model: gemma-3-1b-it
+        minReplicaCount: 1
         maxReplicaCount: 2
     deployments:
       - name: story-teller-gcp-us-central

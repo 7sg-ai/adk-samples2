@@ -16,13 +16,13 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: "0.1.2"
+  version: "0.1.3"
 
 workload:
   source:
     git:
       repoUrl: https://github.com/7sg-ai/adk-samples2
-      ref: main
+      ref: slos-in-scenario
       path: python/agents/story_teller
 
 security:
@@ -96,6 +96,10 @@ scenarios:
             env:
               - name: GOOGLE_GENAI_USE_VERTEXAI
                 value: "true"
+              - name: STORY_MODEL_ENDPOINT
+                value: projects/313599025967/locations/us-central1/endpoints/mg-endpoint-ea8dfd76-4e62-40ce-a10c-39567baa0ec7
+              - name: STORY_MODEL_REGION
+                value: us-central1
             envFromSecretRefs:
               - google-cloud-project
               - google-cloud-location

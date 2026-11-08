@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: "0.1.4"
+  version: "0.1.5"
 
 workload:
   source:
@@ -141,6 +141,9 @@ scenarios:
       - model: gemma-3-1b-it
         minReplicaCount: 1
         maxReplicaCount: 2
+        serving:
+          provider: vertex
+          endpointEnv: STORY_MODEL_ENDPOINT
     deployments:
       - name: story-teller-gcp-us-central
         target:

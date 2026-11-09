@@ -21,42 +21,47 @@ from google.adk.agents import (
     ParallelAgent,
     SequentialAgent,
 )
-from google.adk.models import Gemini
 from google.genai import types
 
 from . import instructions
+from .dedicated_predict import DedicatedPredictModel, resource_region
 
 # --- Configuration Constants ---
 APP_NAME = "collaborative_story_writer"
 SESSION_ID = "story_session_v1"
 MODEL_NAME = "gemini-2.5-flash"
 USER_ID = "author_user_01"
+N_CHAPTERS = 3
+MAX_WORDS = 100
+# shortcut: two tokens per word, raise the multiplier if a chapter is cut off
+_OUTPUT_TOKENS = (N_CHAPTERS + 1) * MAX_WORDS * 2
+_MODEL = None
 
 
 def story_model():
-    """Publisher Gemini, or a Sherpa-owned Vertex endpoint when both env vars are set.
+    """Publisher Gemini, or one shared dedicated endpoint when both env vars are set.
 
     One var without the other is a broken deploy, so the process refuses to start.
     Neither var keeps the existing publisher call.
     """
+    global _MODEL
+    if _MODEL is not None:
+        return _MODEL
     endpoint = os.environ.get("STORY_MODEL_ENDPOINT", "").strip()
     region = os.environ.get("STORY_MODEL_REGION", "").strip()
     if not endpoint and not region:
-        return MODEL_NAME
+        _MODEL = MODEL_NAME
+        return _MODEL
     if not endpoint or not region:
         raise RuntimeError("STORY_MODEL_ENDPOINT and STORY_MODEL_REGION must both be set")
-    # model is the endpoint resource. The GenAI client then posts
-    # {endpoint}:generateContent on the regional host. Putting the resource in
-    # base_url makes it append a second publisher model path.
-    return Gemini(
+    if resource_region(endpoint) != region:
+        raise RuntimeError("STORY_MODEL_REGION does not match the endpoint resource")
+    _MODEL = DedicatedPredictModel(
         model=endpoint,
-        api_version="v1",
-        client_kwargs={"vertexai": True, "location": region},
+        region=region,
+        max_output_tokens=_OUTPUT_TOKENS,
     )
-
-# User-Defined Constraints
-N_CHAPTERS = 3  # Number of chapters to write
-MAX_WORDS = 100  # Max words per chapter
+    return _MODEL
 
 # --- State Keys ---
 KEY_USER_PROMPT = "user_prompt"

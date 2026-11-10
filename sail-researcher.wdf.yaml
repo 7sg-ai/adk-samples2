@@ -17,13 +17,13 @@ metadata:
     language: go
   annotations:
     sherpa.7sg.ai/origin: adk-samples2
-  version: "0.1.2"
+  version: "0.1.3"
 
 workload:
   source:
     git:
       repoUrl: https://github.com/7sg-ai/adk-samples2
-      ref: main
+      ref: slos-in-scenario
       path: go/agents/sail-researcher
 
 security:

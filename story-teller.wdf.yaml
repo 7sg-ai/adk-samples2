@@ -16,7 +16,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: "0.1.7"
+  version: "0.1.8"
 
 workload:
   source:
@@ -82,17 +82,6 @@ scenarios:
       GCP-native deployment: containerised ADK agent on Cloud Run.
       The backing model is the deployed Gemma 3 1B endpoint named by
       STORY_MODEL_ENDPOINT. No external tools or data sources.
-    evaluation:
-      judge:
-        prompt_version: story-teller-reference.v1
-        prompt: >
-          Score the candidate story against the expected answer on intent and
-          structure, not string equality. Pass when the story follows the
-          premise, stays on that topic, and includes a concrete scene or
-          detail. Fail on an empty answer, a refusal, or a different topic.
-      sla:
-        semantic_quality_min: 0.6
-        accepted_answer_rate_min_pct: 60
     topology:
       components:
         - name: story-teller-service

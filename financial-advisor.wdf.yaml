@@ -17,7 +17,7 @@ metadata:
     framework: google-adk
   annotations:
     sherpa.7sg.ai/origin: adk-samples
-  version: "0.1.3"
+  version: "0.1.4"
 
 workload:
   source:
@@ -108,6 +108,18 @@ scenarios:
       GCP-native deployment: containerised ADK agent on Cloud Run with
       Vertex AI Gemini 2.5 Pro as the coordinator and sub-agent model.
       Google Search for real-time financial data grounding.
+    evaluation:
+      judge:
+        model: glm-5-3-flash
+        prompt_version: financial-advisor-reference.v1
+        prompt: >
+          Score the candidate advice against the expected answer on the
+          question asked, not string equality. Pass when it stays on that
+          question and includes a concrete figure or action. Fail on an empty
+          answer, a refusal, or a different topic.
+      sla:
+        semantic_quality_min: 0.6
+        accepted_answer_rate_min_pct: 60
     topology:
       components:
         - name: financial-advisor-service
